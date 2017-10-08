@@ -104,13 +104,14 @@ def split_drive_files(files):
     for file in files:
         file_type = file['mimeType']
         if 'spreadsheet' in file_type:
-            if 'leaderboard' in file['title'].lower():
+            filename = file['title'].lower()
+            if 'leaderboard' in filename:
                 leaderboard_file = file
 
-            elif 'history' in file['title'].lower():
+            elif 'history' in filename:
                 history_file = file
 
-            elif 'answer' in file['title'].lower():
+            elif 'answer' in filename:
                 answers = file
             else:
                 response_list.append(file)
