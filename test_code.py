@@ -267,8 +267,6 @@ def update_leaderboard_spreadsheet(leaderboard_file, new_entries, answer_key):
         if add_last_game_history(leaderboard_file['id'], game, answer_key):
             update_master_list(leaderboard_file['id'])
 
-
-
 def manage_gwg_leaderboard(files):
     """This function will take a list from the files on the google app, and will
     iterate through the responses that we haven't added into our leaderboards yet.
@@ -293,7 +291,6 @@ def manage_gwg_leaderboard(files):
             update_leaderboard_spreadsheet(leaderboard_file, latest_entrants, answer_key)
 
 
-
 def main():
     """Shows basic usage of the Google Drive API.
 
@@ -316,8 +313,6 @@ def main():
     drive_files = get_all_drive_files()
 
     manage_gwg_leaderboard(drive_files)
-
-
 
 if __name__ == '__main__':
     load_application_secrets()
