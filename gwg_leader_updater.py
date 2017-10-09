@@ -4,6 +4,7 @@ import json
 import httplib2
 import traceback
 
+sys.path.insert(0, "K:\Documents\GitHub\gspread")
 import gspread
 
 from apiclient import discovery, errors
@@ -65,7 +66,9 @@ def get_all_drive_files():
 
     try:
         param = {}
+        print ("Getting all of the google drive files...")
         children = service.children().list(folderId=folder, **param).execute()
+        print ("Done.")
 
     except errors.HttpError, error:
         print ('An error occurred: %s' % error)
@@ -78,6 +81,7 @@ def collect_file_metadata(files):
     """this will go through, investigate each item and print the details about it"""
 
     results = []
+    print ("Collecting all file metadata...")
     for file in files:
         try:
             results.append(service.files().get(fileId=file['id']).execute())
@@ -86,6 +90,7 @@ def collect_file_metadata(files):
             print ('An error occurred: %s' % error)
             print (traceback.print_exc())
 
+    print ("Done.")
     return results
 
 def split_drive_files(files):
@@ -101,30 +106,65 @@ def split_drive_files(files):
     history_file = None
     answers = None
 
+    print ("Discovering specific files...")
     for file in files:
         file_type = file['mimeType']
         if 'spreadsheet' in file_type:
             filename = file['title'].lower()
             if 'leaderboard' in filename:
-                leaderboard_file = file
+                if not leaderboard_file:
+                    print("Found leaderboard file!")
+                    leaderboard_file = file
+                else:
+                    print ("Found duplicate leaderboard file. Exiting due to fatal error.")
+                    sys.exit(-1)
 
             elif 'history' in filename:
-                history_file = file
+                if not history_file:
+                    print ("Found history file!")
+                    history_file = file
+                else:
+                    print ("Found duplicate history file. Exiting due to fatal error.")
+                    sys.exit(-1)
 
             elif 'answer' in filename:
-                answers = file
+                if not answers:
+                    answers = file
+                    print ("Found anwser key!")
+                else:
+                    print ("Found duplicate anwser key. Exiting due to fatal error.")
+                    sys.exit(-1)
             else:
+                print ("Found a response!")
                 response_list.append(file)
 
+    print ("Done discovering files.")
     return response_list, leaderboard_file, history_file, answers
 
 def get_all_sheet_lines(file_id):
     """This function will read a spreadsheet, read every line and return the results"""
 
     try:
+        print ("Reading sheet with id: %s" % file_id)
         spreadsheet = gc.open_by_key(file_id)
         worksheet = spreadsheet.get_worksheet(0)
+        print ("Done")
         return worksheet.get_all_values()
+
+    except Exception as error:
+        print ('attemped to open with key: %s' % file_id)
+        print ('An error occurred: %s' % error)
+        print (traceback.print_exc())
+        sys.exit(-1)
+
+def get_sheet_single_column(file_id):
+    """returns column a from the passed spreadsheet file_id"""
+    try:
+        print ("Reading column 1 from sheet with id: %s" % file_id)
+        spreadsheet = gc.open_by_key(file_id)
+        worksheet = spreadsheet.get_worksheet(0)
+        print ("Done")
+        return worksheet.col_values(1)
 
     except Exception as error:
         print ('attemped to open with key: %s' % file_id)
@@ -142,15 +182,14 @@ def remove_used_responses(files, history_id):
 
     pending_files = []
 
-    blacklisted_responses = get_all_sheet_lines(history_id)
+    blacklisted_responses = get_sheet_single_column(history_id)
 
+    print ("Removing files from list that have already been consumed...")
     for file in files:
-        if file['id'] in blacklisted_responses:
-            #speed up our algo by removing entry from search space.
-            blacklisted_responses.remove(file['id'])
-        else:
+        if str(file['id']) not in blacklisted_responses:
             pending_files.append(file)
 
+    print ("Done.")
     return pending_files
 
 def extract_GWG_title(title):
@@ -168,22 +207,23 @@ def get_list_of_enteries(files):
     new_data = []
     sorted_files = sorted(files, key=lambda x: x['createdDate'])
 
+    print ("Getting new GWG entries...")
+
     #sort files by creation date so we read oldest files first(earlier games)
     for file in sorted_files:
         try:
             spreadsheet = gc.open_by_key(file['id'])
             worksheet = spreadsheet.get_worksheet(0)
-
-
             name = extract_GWG_title(file['title'])
-            new_data.append({'name': name, 'data':worksheet.get_all_values()})
+            new_data.append({'name': name, 'data':worksheet.get_all_values(), 'id':file['id']})
+            print ("Found a new result package.")
 
         except Exception as error:
             print ('attempted to open with key: %s' % file_id)
             print ('An error occurred: %s' % error)
             print (traceback.print_exc())
             sys.exit(-1)
-
+    print ("Done.")
     return new_data
 
 def get_game_results(game_id, answer_key):
@@ -192,6 +232,7 @@ def get_game_results(game_id, answer_key):
     """
 
     results = []
+    print ("Extracting game %s question results..." % game_id)
     try:
         spreadsheet = gc.open_by_key(answer_key['id'])
         worksheet = spreadsheet.get_worksheet(0)
@@ -204,7 +245,10 @@ def get_game_results(game_id, answer_key):
         for line in lines:
             if line[0] == game_id:
                 results.append(line)
+
+                print ("Done getting game results.")
                 return results
+        print ("Failure.")
         return None
 
     except Exception as error:
@@ -217,6 +261,8 @@ def add_last_game_history(leader_fileid, game, answer_key):
     """takes the current game, makes a new worksheet in the google sheet that contains
      the previous games results and the answer key.
     """
+
+    print ("Adding previous game to leaderboard.")
     try:
         sh = gc.open_by_key(leader_fileid)
 
@@ -227,12 +273,19 @@ def add_last_game_history(leader_fileid, game, answer_key):
             print ("Assuming this is a failure recovery and continuing.")
             return True
         else:
+            print ("adding worksheet %s to workbook" % game['name'])
+
             rows = len(game['data'])
             cols = 5 # timestamp, username, GWG, q2, q3
             new_worksheet = sh.add_worksheet(title=game['name'], rows=1, cols=1)
             results = get_game_results(game['name'], answer_key)
 
+            if not results:
+                print ("Exiting due to fatal error of not having results of a game for updating leaderboards.")
+                sys.exit(-1)
+
             #append the top bar and the questions for the match
+            print ("Appending rows...")
             for result in results:
                 new_line = [result[0], result[1], "username"] +  result[2:]
                 new_worksheet.append_row(new_line)
@@ -245,6 +298,7 @@ def add_last_game_history(leader_fileid, game, answer_key):
                 new_data_line = ["", "", data_line[1], data_line[2], "", data_line[3], "", data_line[4]]
                 new_worksheet.append_row(new_data_line)
 
+            print ("Done with new worksheet %s" % game['name'])
             return True
 
     except Exception as error:
@@ -256,7 +310,26 @@ def add_last_game_history(leader_fileid, game, answer_key):
 def update_master_list(temp):
     return True
 
-def update_leaderboard_spreadsheet(leaderboard_file, new_entries, answer_key):
+def add_fileid_history_to_history(game, history_file):
+    """Open the history file and append to the end of it the current file ID that we've
+    just read.
+    """
+
+    print ("Adding file %s to history file %s." % (game['id'], history_file['id']))
+    try:
+        spreadsheet = gc.open_by_key(history_file['id'])
+        worksheet = spreadsheet.get_worksheet(0)
+        worksheet.append_row(game['id'])
+        print ("Done.")
+        return None
+
+    except Exception as error:
+        print ('attemped to open with key: %s' % game['id'])
+        print ('An error occurred: %s' % error)
+        print (traceback.print_exc())
+        sys.exit(-1)
+
+def update_leaderboard_spreadsheet(leaderboard_file, new_entries, answer_key, history_file):
     """this function will read the leaderboard spreadsheet, update the latest worksheet, add
     a new worksheet for the current game, and return success signal
     """
@@ -265,7 +338,12 @@ def update_leaderboard_spreadsheet(leaderboard_file, new_entries, answer_key):
 
     for game in new_entries:
         if add_last_game_history(leaderboard_file['id'], game, answer_key):
+            add_fileid_history_to_history(game, history_file)
             update_master_list(leaderboard_file['id'])
+        else:
+            print ("Unable to add last games history, may have partially written data.")
+            print ("Currently, manual verificatoin is required. Sorry.")
+            sys.exit(-1)
 
 def manage_gwg_leaderboard(files):
     """This function will take a list from the files on the google app, and will
@@ -285,10 +363,10 @@ def manage_gwg_leaderboard(files):
         latest_entrants = get_list_of_enteries(responses)
 
         if not latest_entrants or len(latest_entrants) == 0:
-            print ("Error occurred, no new entrants needed to be ingested")
+            print ("No new entrants needed to be ingested, exiting early.")
             sys.exit()
         else:
-            update_leaderboard_spreadsheet(leaderboard_file, latest_entrants, answer_key)
+            update_leaderboard_spreadsheet(leaderboard_file, latest_entrants, answer_key, history_file)
 
 
 def main():
@@ -311,7 +389,6 @@ def main():
     service = discovery.build('drive', 'v2', http=http)
 
     drive_files = get_all_drive_files()
-
     manage_gwg_leaderboard(drive_files)
 
 if __name__ == '__main__':
