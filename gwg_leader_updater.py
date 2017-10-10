@@ -3,6 +3,7 @@ import sys
 import json
 import httplib2
 import traceback
+from datetime import datetime as dt
 
 sys.path.insert(0, "K:\Documents\GitHub\gspread")
 import gspread
@@ -233,37 +234,62 @@ def get_game_results(game_id):
     successful results or None is there isn't a matching game.
     """
 
-    results = []
+    results = {'title': [], 'result': []}
     print ("Extracting game %s question results..." % game_id)
     try:
         spreadsheet = gc.open_by_key(drive_files['answers']['id'])
         worksheet = spreadsheet.get_worksheet(0)
         lines = worksheet.get_all_values()
 
-        # add title bar minus that last element (since that is the trigger for file running)
-        results.append(lines[0][:-1])
+        # add title bar minus that last element (since that is the trigger for file running) but add points column.
+        new_row = lines[0][:-1] + ["Points"]
+        results['title'] = new_row
 
         # find matching game line
         for line in lines:
             if line[0] == game_id:
                 #add line minus last column since that is the trigger for file being run.
-                results.append(line[:-1])
+                results['result'] = line[:-1]
 
                 print ("Done getting game results.")
                 return results
         print ("Failure.")
-        return None
+        return results
 
     except Exception as error:
         print ('attemped to open with key: %s' % game_id)
         print ('An error occurred: %s' % error)
         print (traceback.print_exc())
-        return None
+        return results
+
+def format_results_data(data):
+    """returns a formatted string that we like for presentation of results per game."""
+    return data[:2] + ["username"] + data[2:] + ["N/A"]
+
+def get_players_points(player, anwsers):
+    """Calculates the total points that a player may have gotten in the GWG challenge.
+
+    returns the sum
+    """
+    total = 0
+
+    if (anwsers[0].lower() == player[2].lower()):
+        total += 1
+    if (anwsers[1].lower() == player[3].lower()):
+        total += 1
+    if (anwsers[2].lower() == player[4].lower()):
+        total +=1
+
+    return total
 
 def add_last_game_history(leader_fileid, game):
     """takes the current game, makes a new worksheet in the google sheet that contains
      the previous games results and the answer key.
     """
+
+    gwg_anwsers = []
+    sh = None
+    new_worksheet = None
 
     print ("Adding previous game to leaderboard.")
     try:
@@ -281,25 +307,41 @@ def add_last_game_history(leader_fileid, game):
             rows = len(game['data'])
             cols = 5 # timestamp, username, GWG, q2, q3
             new_worksheet = sh.add_worksheet(title=game['name'], rows=1, cols=1)
-            results = get_game_results(game['name'])
+            game_result_data = get_game_results(game['name'])
 
-            if not results:
-                print ("Exiting due to fatal error of not having results of a game for updating leaderboards.")
-                sys.exit(-1)
+            if not game_result_data['result']:
+                sh.del_worksheet(new_worksheet)
+                print ("Results of %s are not in yet, exiting without doing anything." % game['name'])
+                return False
 
             #append the top bar and the questions for the match
             print ("Appending rows...")
-            for result in results:
-                new_line = [result[0], result[1], "username"] +  result[2:]
-                new_worksheet.append_row(new_line)
+
+            new_worksheet.append_row(format_results_data(game_result_data['title']))
+            new_worksheet.append_row(format_results_data(game_result_data['result']))
+
+            # magic number positioning
+            gwg_anwsers = [game_result_data['result'][2], game_result_data['result'][4], game_result_data['result'][6]]
+            game_time = dt.strptime(game_result_data['result'][1], "%m/%d/%Y %H:%M")
 
             new_worksheet.append_row("")
 
             #remove heading, then iterate through the whole list.
-            data_list = game['data'][1:]
-            for data_line in data_list:
-                new_data_line = ["", "", data_line[1], data_line[2], "", data_line[3], "", data_line[4]]
-                new_worksheet.append_row(new_data_line)
+            data_line = game['data'][1:]
+            num_late_entries = 0
+            for data in data_line:
+                player_points = get_players_points(data, gwg_anwsers) 
+                new_data_line = ["", "", data[1], data[2], "", data[3], "", data[4], player_points]
+
+                # check if user got their entry in on time. if not, avoid it.
+                entry_time = dt.strptime(data[0], "%m/%d/%Y %H:%M:%S")
+                if (entry_time <= game_time):
+                    new_worksheet.append_row(new_data_line)
+                else:
+                    num_late_entries += 1
+            new_worksheet.append_row(["Total entries: " + str(len(data_line))])
+            new_worksheet.append_row(["Late entries: " + str(num_late_entries)])
+            new_worksheet.append_row(["Total valid entries: " + str(len(data_line) - num_late_entries)])
 
             print ("Done with new worksheet %s" % game['name'])
             return True
@@ -308,6 +350,7 @@ def add_last_game_history(leader_fileid, game):
         print ('attemped to write new sheet in binder: %s' % leader_fileid)
         print ('An error occurred: %s' % error)
         print (traceback.print_exc())
+        sh.del_worksheet(new_worksheet)
         return False
 
 def update_master_list(temp):
@@ -347,8 +390,6 @@ def update_leaderboard_spreadsheet(new_entries):
             update_master_list(leaderboard_id)
         else:
             print ("Unable to add last games history, may have partially written data.")
-            print ("Currently, manual verificatoin is required. Sorry.")
-            sys.exit(-1)
 
 def manage_gwg_leaderboard():
     """This function will take a list from the files on the google app, and will
@@ -380,6 +421,8 @@ def new_data_available():
     returns true if there is a game to manage
     """
 
+    #TODO: read last column of data in anwser key, and see if every row with a yes is a worksheet in leaderboards.
+
     return True
 
 def update_global_file_list(files):
@@ -388,7 +431,6 @@ def update_global_file_list(files):
     global drive_files
     #TODO: update this such that we detect if we have two leaderboard files etc etc
     drive_files = {'responses': [], 'answers': None, 'leaderboard': None, 'history': None}
-
 
     print ("Updating google drive files...")
 
