@@ -4,6 +4,7 @@ import json
 import httplib2
 import traceback
 from datetime import datetime as dt
+from time import sleep
 
 sys.path.insert(0, "K:\Documents\GitHub\gspread")
 import gspread
@@ -23,7 +24,7 @@ APPLICATION_SECRETS = None
 
 gc = None
 service = None
-drive_files = {'responses': None, 'answers': None, 'leaderboard': None, 'history': None}
+drive_files = {'responses': None, 'answers': None, 'leaderboard': None}
 
 def load_application_secrets():
     """Loads the application secrets that aren't oauth related"""
@@ -70,7 +71,7 @@ def get_all_drive_files():
         param = {}
         print ("Getting all of the google drive files...")
         children = service.children().list(folderId=folder, **param).execute()
-        print ("Done.")
+        print ("Got list of all google drive files")
 
     except errors.HttpError, error:
         print ('An error occurred: %s' % error)
@@ -92,20 +93,19 @@ def collect_file_metadata(files):
             print ('An error occurred: %s' % error)
             print (traceback.print_exc())
 
-    print ("Done.")
+    print ("Collected all file meta datas.")
     return results
 
 def split_drive_files(files):
     """This function will take a list of google drive meta file details and 
-    figure out which files are responses, the leaderboard, and the history file 
+    figure out which files are responses and the leaderboard
     stating which files we've already added to leaderboard totals.
 
-    returns a tuple that is the responses list, the leaderboard file, and history file.
+    returns a tuple that is the responses list, the leaderboard file
     """
 
     response_list = []
     leaderboard_file = None
-    history_file = None
     answers = None
 
     print ("Discovering specific files...")
@@ -120,15 +120,6 @@ def split_drive_files(files):
                 else:
                     print ("Found duplicate leaderboard file. Exiting due to fatal error.")
                     sys.exit(-1)
-
-            elif 'history' in filename:
-                if not history_file:
-                    print ("Found history file!")
-                    history_file = file
-                else:
-                    print ("Found duplicate history file. Exiting due to fatal error.")
-                    sys.exit(-1)
-
             elif 'answer' in filename:
                 if not answers:
                     answers = file
@@ -140,8 +131,8 @@ def split_drive_files(files):
                 print ("Found a response!")
                 response_list.append(file)
 
-    print ("Done discovering files.")
-    return response_list, leaderboard_file, history_file, answers
+    print ("Discovered all files.")
+    return response_list, leaderboard_file, answers
 
 def get_all_sheet_lines(file_id):
     """This function will read a spreadsheet, read every line and return the results"""
@@ -150,7 +141,7 @@ def get_all_sheet_lines(file_id):
         print ("Reading sheet with id: %s" % file_id)
         spreadsheet = gc.open_by_key(file_id)
         worksheet = spreadsheet.get_worksheet(0)
-        print ("Done")
+        print ("Done reading sheet")
         return worksheet.get_all_values()
 
     except Exception as error:
@@ -159,14 +150,14 @@ def get_all_sheet_lines(file_id):
         print (traceback.print_exc())
         sys.exit(-1)
 
-def get_sheet_single_column(file_id):
+def get_sheet_single_column(file_id, column):
     """returns column a from the passed spreadsheet file_id"""
     try:
-        print ("Reading column 1 from sheet with id: %s" % file_id)
+        print ("Reading column %s from sheet with id: %s" % (column, file_id))
         spreadsheet = gc.open_by_key(file_id)
         worksheet = spreadsheet.get_worksheet(0)
-        print ("Done")
-        return worksheet.col_values(1)
+        print ("Done reading column")
+        return worksheet.col_values(column)
 
     except Exception as error:
         print ('attemped to open with key: %s' % file_id)
@@ -174,33 +165,12 @@ def get_sheet_single_column(file_id):
         print (traceback.print_exc())
         sys.exit(-1)
 
-def remove_used_responses(history_id):
-    """This function will go through the lists of responses and remove any that 
-    have already been accounted for in the leaderboards as stated by the history
-    file.
-
-    returns a list of meta file data that needs to be consumed
-    """
-
-    pending_files = []
-
-    blacklisted_responses = get_sheet_single_column(history_id)
-
-    print ("Removing files from list that have already been consumed...")
-    for file in drive_files['responses']:
-        if str(file['id']) not in blacklisted_responses:
-            pending_files.append(file)
-
-    print ("Done.")
-    drive_files['responses'] = pending_files
-    return True
-
 def extract_GWG_title(title):
     """takes a string, extracts the number in the name and returns GMX where X is 1< X <= 82"""
     parts = title.split(" ")
     return "GM" + parts[1]
 
-def get_list_of_enteries():
+def get_list_of_enteries(files):
     """This function accepts a list of files that we will go through
     (not blacklisted) pull the people entries for the GWG and return a list of lists
     that contains all the entries for each response sheet we have. In a perfect world
@@ -208,7 +178,7 @@ def get_list_of_enteries():
     """
 
     new_data = []
-    sorted_files = sorted(drive_files['responses'], key=lambda x: x['createdDate'])
+    sorted_files = sorted(files, key=lambda x: x['createdDate'])
 
     print ("Getting new GWG entries...")
 
@@ -226,7 +196,7 @@ def get_list_of_enteries():
             print ('An error occurred: %s' % error)
             print (traceback.print_exc())
             sys.exit(-1)
-    print ("Done.")
+    print ("Done getting new GWG entires.")
     return new_data
 
 def get_game_results(game_id):
@@ -266,18 +236,18 @@ def format_results_data(data):
     """returns a formatted string that we like for presentation of results per game."""
     return data[:2] + ["username"] + data[2:] + ["N/A"]
 
-def get_players_points(player, anwsers):
+def get_players_points(player, answers):
     """Calculates the total points that a player may have gotten in the GWG challenge.
 
     returns the sum
     """
     total = 0
 
-    if (anwsers[0].lower() == player[2].lower()):
+    if (answers[0].lower() == player[2].lower()):
         total += 1
-    if (anwsers[1].lower() == player[3].lower()):
+    if (answers[1].lower() == player[3].lower()):
         total += 1
-    if (anwsers[2].lower() == player[4].lower()):
+    if (answers[2].lower() == player[4].lower()):
         total +=1
 
     return total
@@ -287,7 +257,7 @@ def add_last_game_history(leader_fileid, game):
      the previous games results and the answer key.
     """
 
-    gwg_anwsers = []
+    gwg_answers = []
     sh = None
     new_worksheet = None
 
@@ -295,6 +265,8 @@ def add_last_game_history(leader_fileid, game):
     try:
         sh = gc.open_by_key(leader_fileid)
 
+        # technically could call the function we made, but might as well not
+        #    since we handle sh more in this function later on.
         worksheet_list = sh.worksheets()
 
         if game['name'] in worksheet_list:
@@ -321,7 +293,7 @@ def add_last_game_history(leader_fileid, game):
             new_worksheet.append_row(format_results_data(game_result_data['result']))
 
             # magic number positioning
-            gwg_anwsers = [game_result_data['result'][2], game_result_data['result'][4], game_result_data['result'][6]]
+            gwg_answers = [game_result_data['result'][2], game_result_data['result'][4], game_result_data['result'][6]]
             game_time = dt.strptime(game_result_data['result'][1], "%m/%d/%Y %H:%M")
 
             new_worksheet.append_row("")
@@ -330,7 +302,7 @@ def add_last_game_history(leader_fileid, game):
             data_line = game['data'][1:]
             num_late_entries = 0
             for data in data_line:
-                player_points = get_players_points(data, gwg_anwsers) 
+                player_points = get_players_points(data, gwg_answers) 
                 new_data_line = ["", "", data[1], data[2], "", data[3], "", data[4], player_points]
 
                 # check if user got their entry in on time. if not, avoid it.
@@ -356,25 +328,6 @@ def add_last_game_history(leader_fileid, game):
 def update_master_list(temp):
     return True
 
-def add_fileid_history_to_history(game):
-    """Open the history file and append to the end of it the current file ID that we've
-    just read.
-    """
-
-    print ("Adding file %s to history file %s." % (game['id'], drive_files['history']['id']))
-    try:
-        spreadsheet = gc.open_by_key(drive_files['history']['id'])
-        worksheet = spreadsheet.get_worksheet(0)
-        worksheet.append_row(game['id'])
-        print ("Done.")
-        return None
-
-    except Exception as error:
-        print ('attemped to open with key: %s' % game['id'])
-        print ('An error occurred: %s' % error)
-        print (traceback.print_exc())
-        sys.exit(-1)
-
 def update_leaderboard_spreadsheet(new_entries):
     """this function will read the leaderboard spreadsheet, update the latest worksheet, add
     a new worksheet for the current game, and return success signal
@@ -386,31 +339,96 @@ def update_leaderboard_spreadsheet(new_entries):
 
     for game in new_entries:
         if add_last_game_history(leaderboard_id, game):
-            add_fileid_history_to_history(game)
             update_master_list(leaderboard_id)
         else:
             print ("Unable to add last games history, may have partially written data.")
 
+def convert_response_filename(name):
+    """convert a standardized game name string into a string our software expects.
+
+    Eg. GM 3 (Responses) -> GM3
+        GM 62 (Respsonses) -> GM62
+    """
+
+    parts = name.split(" ")
+    return "GM" + parts[1]
+
+def trim_already_managed_games():
+    """this will go through the responses we have and compare them to the 
+    sheets already created in the main leadeboard spreadsheet. If it already exists, 
+    remove it from the list.
+
+    returns the trimmed list.
+    """
+    print ("Trimming already managed games")
+    current_sheets = get_all_sheets_titles(drive_files['leaderboard']['id'])
+
+    pending_games = []
+    for file in drive_files['responses']:
+        filename = convert_response_filename(file['title'])
+        if filename not in current_sheets:
+            pending_games.append(file)
+
+    print ("Done trimming %s games for %s pending" % (len(drive_files['responses']) - len(pending_games), len(pending_games)))
+    return pending_games
+
 def manage_gwg_leaderboard():
     """This function will take a list from the files on the google app, and will
     iterate through the responses that we haven't added into our leaderboards yet.
-    We will then update the history file so we don't duplication the add ons.
     """
 
-    remove_used_responses(drive_files['history']['id'])
+    new_games = trim_already_managed_games()
 
-    if len(drive_files['responses']) == 0:
-        print ("No files left to process. Ending.")
+    if not new_games or len(new_games) == 0:
+        print ("No responses left to process. Ending.")
         sys.exit()
     else:
-        
-        latest_entrants = get_list_of_enteries()
+        latest_entrants = get_list_of_enteries(new_games)
 
         if not latest_entrants or len(latest_entrants) == 0:
             print ("No new entrants needed to be ingested, exiting early.")
             sys.exit()
         else:
             update_leaderboard_spreadsheet(latest_entrants)
+
+def remove_values_from_list(the_list, val):
+    """https://stackoverflow.com/a/1157132"""
+    return [value for value in the_list if value != val]
+
+def get_game_list(fileid):
+    """Gets two columns from the anwser table and combines them into a single list. Returns that result"""
+
+    games = remove_values_from_list(get_sheet_single_column(fileid, 1), "")
+    readys = get_sheet_single_column(fileid, 8)
+
+    if not games or not readys:
+        return None
+
+    result = [[a, b.title()] for a, b in zip(games, readys)]
+
+    #return everything except the title
+    return result[1:]  
+
+def get_all_sheets_titles(fileid):
+    """This will return all of the sheet names in the leaderboard book."""
+
+    print ("Trying to get all sheets in file %s" % fileid)
+    try:
+        sh = gc.open_by_key(fileid)
+        worksheets = sh.worksheets()
+
+        results = []
+        for sheet in worksheets:
+            results.append(sheet.title)
+
+        print "Success reading all sheets from file"
+        return results
+
+    except Exception as error:
+        print ('Attemped to read all sheets in file: %s' % fileid)
+        print ('An error occurred: %s' % error)
+        print (traceback.print_exc())
+        return None
 
 def new_data_available():
     """This function will check the leaderboard for games that say "yes" for 
@@ -421,16 +439,24 @@ def new_data_available():
     returns true if there is a game to manage
     """
 
-    #TODO: read last column of data in anwser key, and see if every row with a yes is a worksheet in leaderboards.
+    game_list = get_game_list(drive_files['answers']['id'])
+    completed_sheets = get_all_sheets_titles(drive_files['leaderboard']['id'])
 
-    return True
+    if not game_list or not completed_sheets:
+        return False
+
+    else:
+        for game in game_list:
+            if game[0] not in completed_sheets and game[1].lower() == "yes":
+                return True
+        return False
 
 def update_global_file_list(files):
     """This will take a list of files, and update the global variable that manages all these files."""
 
     global drive_files
     #TODO: update this such that we detect if we have two leaderboard files etc etc
-    drive_files = {'responses': [], 'answers': None, 'leaderboard': None, 'history': None}
+    drive_files = {'responses': [], 'answers': None, 'leaderboard': None}
 
     print ("Updating google drive files...")
 
@@ -442,10 +468,6 @@ def update_global_file_list(files):
                 if not drive_files['leaderboard']:
                     print("Found leaderboard file!")
                     drive_files['leaderboard'] = file
-            elif 'history' in filename:
-                if not drive_files['history']:
-                    print ("Found history file!")
-                    drive_files['history'] = file
             elif 'answer' in filename:
                 if not drive_files['answers']:
                     drive_files['answers'] = file
@@ -487,6 +509,7 @@ def main():
             manage_gwg_leaderboard()
             sys.exit()
         else:
+            sys.exit()
             sleep(60*60)
 
 if __name__ == '__main__':
