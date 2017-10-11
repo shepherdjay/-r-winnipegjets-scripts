@@ -71,7 +71,7 @@ def get_all_drive_files():
         param = {}
         print ("Getting all of the google drive files...")
         children = service.children().list(folderId=folder, **param).execute()
-        print ("Got list of all google drive files")
+        print ("received list of all google drive files")
 
     except errors.HttpError, error:
         print ('An error occurred: %s' % error)
@@ -243,14 +243,27 @@ def get_players_points(player, answers):
     """
     total = 0
 
-    if (answers[0].lower() == player[2].lower()):
-        total += 1
-    if (answers[1].lower() == player[3].lower()):
-        total += 1
-    if (answers[2].lower() == player[4].lower()):
-        total +=1
+    # check if there is multiple values that are winners or 
+    for x in range(3):
+        if player[2 + x].lower() in answers[x]:
+            total += 1
 
     return total
+
+def get_gwg_answers(data):
+    """Returns a list of possible answers for the GWG questions"""
+
+    result = []
+    for x in range(3):
+         #if no ',' creates a list of len=1
+        new_ans = data[2+ (x*2)].lower().split(",")
+
+        trimmed = []
+        for answer in new_ans:
+            trimmed.append(answer.strip())
+        result.append(trimmed)
+
+    return result
 
 def add_last_game_history(leader_fileid, game):
     """takes the current game, makes a new worksheet in the google sheet that contains
@@ -270,8 +283,8 @@ def add_last_game_history(leader_fileid, game):
         worksheet_list = sh.worksheets()
 
         if game['name'] in worksheet_list:
-            print ("this game has already been written to the binder as a worksheet")
-            print ("Assuming this is a failure recovery and continuing.")
+            print ("this game has already been written to the wroksheet as a sheet")
+            print ("Assuming this is a failure recovery and continuing(?)")
             return True
         else:
             print ("adding worksheet %s to workbook" % game['name'])
@@ -293,7 +306,7 @@ def add_last_game_history(leader_fileid, game):
             new_worksheet.append_row(format_results_data(game_result_data['result']))
 
             # magic number positioning
-            gwg_answers = [game_result_data['result'][2], game_result_data['result'][4], game_result_data['result'][6]]
+            gwg_answers = get_gwg_answers(game_result_data['result'])
             game_time = dt.strptime(game_result_data['result'][1], "%m/%d/%Y %H:%M")
 
             new_worksheet.append_row("")
@@ -301,6 +314,7 @@ def add_last_game_history(leader_fileid, game):
             #remove heading, then iterate through the whole list.
             data_line = game['data'][1:]
             num_late_entries = 0
+
             for data in data_line:
                 player_points = get_players_points(data, gwg_answers) 
                 new_data_line = ["", "", data[1], data[2], "", data[3], "", data[4], player_points]
@@ -396,7 +410,7 @@ def remove_values_from_list(the_list, val):
     return [value for value in the_list if value != val]
 
 def get_game_list(fileid):
-    """Gets two columns from the anwser table and combines them into a single list. Returns that result"""
+    """Gets two columns from the answer table and combines them into a single list. Returns that result"""
 
     games = remove_values_from_list(get_sheet_single_column(fileid, 1), "")
     readys = get_sheet_single_column(fileid, 8)
@@ -509,8 +523,10 @@ def main():
             manage_gwg_leaderboard()
             sys.exit()
         else:
+            sleep_time = 60*60
+            print ("No new data available for updating with. Sleeping for %s" % sleep_time)
             sys.exit()
-            sleep(60*60)
+            sleep(sleep_time)
 
 if __name__ == '__main__':
     load_application_secrets()
