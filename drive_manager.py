@@ -209,7 +209,7 @@ class DriveManager():
             by default assume fist sheet in workbook
         """
         try:
-            print ("Reading column %s from sheet with id: %s" % (column, file_id))
+            print ("Reading column %s from sheet %s with id: %s" % (column, sheet, file_id))
             spreadsheet = self.gc.open_by_key(file_id)
             worksheet = spreadsheet.get_worksheet(sheet)
             print ("Done reading column")
@@ -300,8 +300,8 @@ class DriveManager():
             workbook = self.gc.open_by_key(sheet_info['id'])
 
             new_worksheet = workbook.add_worksheet(title=sheet_info['name'], 
-                                                    rows=sheet_info['rows'],
-                                                    cols=sheet_info['cols'])
+                                                    rows=1,
+                                                    cols=1)
             for line in sheet_info['data']:
                 new_worksheet.append_row(line)
             print ("Done creating and appending rows to file.")
@@ -483,7 +483,20 @@ class DriveManager():
 
         leaderid = self.drive_files['leaderboard']['id']
 
-        return self._get_sheet_two_columns(leaderid, 0, 1, 2, remove_headers=2)
+
+        data = self.get_all_sheet_lines(leaderid, headers=False)
+
+        formatted_data = {}
+        for line in data:
+            # skip empty lines
+            if line[0] == '':
+                continue
+
+            username = line[0]
+            played = line[3].split("/")[0]
+            stats = {'curr': int(line[1]), 'last': int(line[2]), 'played': played}
+            formatted_data[username] = stats
+        return formatted_data
 
     def overwrite_leaderboard(self, new_data):
         """This will take a dict of usernames and points. It will overwrite the entire first worksheet 
@@ -503,21 +516,27 @@ class DriveManager():
             worksheet = spreadsheet.get_worksheet(0)
 
             row = 3
+            num_games = len(spreadsheet.worksheets()) - 1
             print ("Overwritting leaderboard main page")
-            for username in sorted(new_data, key=lambda x:new_data[x]['curr'], reverse=True):
+            for username in sorted(new_data, 
+                                   key=lambda x:(new_data[x]['curr'],
+                                                 -new_data[x]['played'],
+                                                 new_data[x]['last']), 
+                                   reverse=True):
                 print ("Writting row %s/%s" % (row -2, len(new_data)))
 
                 worksheet.update_cell(row, 1, username)
                 worksheet.update_cell(row, 2, new_data[username]['curr'])
                 worksheet.update_cell(row, 3, new_data[username]['last'])
+                worksheet.update_cell(row, 4, str(new_data[username]['played']) + "/" + str(num_games))
 
                 prev_winner = special_users.get(username)
 
                 #if its a winner, restate their winningness, otherwise clear the column
                 if prev_winner:
-                    worksheet.update_cell(row, 4, prev_winner)
+                    worksheet.update_cell(row, 5, prev_winner)
                 else:
-                    worksheet.update_cell(row, 4, "")
+                    worksheet.update_cell(row, 5, "")
                 row += 1
             print ("Done overwritting data")
             return True
@@ -528,7 +547,7 @@ class DriveManager():
             print (traceback.print_exc())
             sys.exit(-1)
 
-    def update_answerkey_results(self, game):
+    def update_answerkey_results(self, rows):
         """takes the game we just added to the eladerboard and updates the answer key so
         that we dont try to re add this to our leaderboard total again later.
         """
@@ -537,9 +556,9 @@ class DriveManager():
             spreadsheet = self.gc.open_by_key(self.drive_files['answers']['id'])
             worksheet = spreadsheet.get_worksheet(0)
 
-            print ("Overwritting answer key results column for game %s" % game['game'])
-           
-            worksheet.update_cell(game['row'], self.MASTER_LEADERBOARD_ADDED_COLUMN, self.MASTER_WRITE_STATE)
+            for row in rows:
+                print ("Overwritting answer key results column for game %s" % row - 1)
+                worksheet.update_cell(row, self.MASTER_LEADERBOARD_ADDED_COLUMN, self.MASTER_WRITE_STATE)
             print ("Done overwritting data")
             return True
 

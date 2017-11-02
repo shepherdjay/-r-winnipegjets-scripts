@@ -121,17 +121,22 @@ def add_new_user_points(new_answers, leaders):
     returns a list with all the new updates.
     """
     new_leaderboard = {}
-    for username, points in new_answers.items():
-        curr_points = leaders.pop(username, None)
-
-        if curr_points:
-            new_leaderboard[username.lower()] = {'curr': int(points) + int(curr_points), 'last': int(points)}
-        else:
-            new_leaderboard[username.lower()] = {'curr': int(points), 'last': 0}
+    if new_answers:
+        for username, points in new_answers.items():
+            username = username.lower()
+            curr_points = leaders.pop(username, None)
+            if curr_points:
+                new_leaderboard[username] = {'curr': int(points) + int(curr_points['curr']), 'last': int(points), 'played': int(curr_points['played']) + 1}
+            else:
+                new_leaderboard[username] = {'curr': int(points), 'last': 0, 'played': 1}
 
     # add remining people who didn't play in this most previous GWG challenge.
-    for username, points in leaders.items():
-        new_leaderboard[username.lower()] = {'curr': int(points), 'last': 0}
+    if leaders:
+        for username, points in leaders.items():
+            if isinstance(points, dict):
+                new_leaderboard[username] = {'curr': int(points['curr']), 'last': 0, 'played': int(points['played'])}
+            else:
+                new_leaderboard[username] = {'curr': int(points), 'last': 0, 'played': int(curr_points['played'])}
 
     return new_leaderboard
 
@@ -144,16 +149,20 @@ def update_master_list():
     if yes, doesn't update the sheet to the leaderboard.
     """
 
+    written_games = []
+    current_leaders = gdrive.get_current_leaders()
     unwritten_games = gdrive.get_unwritten_leaderboard_games()
 
     for game in unwritten_games:
         newest_results = gdrive.get_history_game_points(game['game'])
-        current_leaders = gdrive.get_current_leaders()
 
-        new_leaderboard = add_new_user_points(newest_results, current_leaders)
+        current_leaders = add_new_user_points(newest_results, current_leaders)
 
-        if gdrive.overwrite_leaderboard(new_leaderboard):
-            gdrive.update_answerkey_results(game)
+        # add the row in answer key that needs to be updated as "written"
+        written_games.append(game['row'])
+
+    if gdrive.overwrite_leaderboard(current_leaders):
+        gdrive.update_answerkey_results(written_games)
 
     return True
 
