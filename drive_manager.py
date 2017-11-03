@@ -372,22 +372,6 @@ class DriveManager():
         print ("Completed updating google drive files files.")
         return True
 
-    def is_game_missing_from_leader_sheet(self):
-        """checks if a game was saved to the leaderboard or if there is a response sheet
-        that is waiting to be ingested
-        """
-        game_list = self._get_game_list(self.drive_files['answers']['id'])
-        completed_sheets = self.get_all_books_sheets(self.drive_files['leaderboard']['id'])
-
-        if not game_list or not completed_sheets:
-            return False
-
-        else:
-            for game in game_list:
-                if game[0] not in completed_sheets and game[1].lower() == "yes":
-                    return True
-            return False
-
     def get_leaderboard_ready_files(self):
         """Checks the answer key and checks if all the games in column I in answer
         sheet are set to "Yes".
@@ -421,7 +405,17 @@ class DriveManager():
         returns true if there is a game to manage
         """
 
-        return self.is_game_missing_from_leader_sheet()
+        game_list = self._get_game_list(self.drive_files['answers']['id'])
+        completed_sheets = self.get_all_books_sheets(self.drive_files['leaderboard']['id'])
+
+        if not game_list or not completed_sheets:
+            return False
+
+        else:
+            for game in game_list:
+                if game[0] not in completed_sheets and game[1].lower() == "yes":
+                    return True
+            return False
 
     def get_drive_filetype(self, filetype):
         """attempts to return the data that we've saved history about in google drive.
@@ -440,15 +434,14 @@ class DriveManager():
         haven't been written to the global leaderboard.
         """
 
+        unwritten_games = []
         data = self.get_all_sheet_lines(self.drive_files['answers']['id'], headers=False)
 
         if not data:
-            return None
+            return unwritten_games
 
         # trim empty lines
         data = self._remove_values_from_list(data, [""] * len(data[0]))
-
-        unwritten_games = []
 
         #ranging so we can save the cell ID to overwrite on completion.
         for i in range(len(data)):
