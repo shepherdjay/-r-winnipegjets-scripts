@@ -557,7 +557,7 @@ class DriveManager():
             worksheet = spreadsheet.get_worksheet(0)
 
             for row in rows:
-                print ("Overwritting answer key results column for game %s" % row - 1)
+                print ("Overwritting answer key results column for game %s" % (int(row) - 1))
                 worksheet.update_cell(row, self.MASTER_LEADERBOARD_ADDED_COLUMN, self.MASTER_WRITE_STATE)
             print ("Done overwritting data")
             return True
