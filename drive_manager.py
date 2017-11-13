@@ -464,7 +464,7 @@ class DriveManager():
         # the below only works assuming the games are added/created in order to the leaderboard spreadsheet.
         sheet_index = self._get_sheet_index(game[0])
 
-        return self._get_sheet_two_columns(leaderid, sheet_index, 3, 9, remove_headers=5)
+        return self._get_sheet_two_columns(leaderid, sheet_index, 3, 9, remove_headers=4)
 
     def get_current_leaders(self):
         """Will retreive the current leaderboard in the leaderboard 
