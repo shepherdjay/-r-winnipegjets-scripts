@@ -283,7 +283,6 @@ def main():
         
         sleep_time = 60*60
         print ("No new data available for updating with. Sleeping for %s" % sleep_time)
-        sys.exit()
         sleep(sleep_time)
 
 if __name__ == '__main__':
