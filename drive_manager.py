@@ -165,7 +165,7 @@ class DriveManager():
     def get_all_drive_file_metadatas(self):
         """Logs into google drive and lists all the file resource that are in the main wpg jets directory."""
 
-        folder = self.APPLICATION_SECRETS[self.team_folder]
+        folder = self.APPLICATION_SECRETS[self.team_folder]['folder']
 
         try:
             param = {}
@@ -585,5 +585,9 @@ class DriveManager():
         for form in self.drive_files['forms']:
             if form['title'].lower() == "gwg " + str(form_num):
                 return form
-
         return None
+
+    def get_team_contacts(self, team):
+        """takes a number and returns the redditors that are associated to that folder."""
+
+        return self.APPLICATION_SECRETS.get(self.team_folder).get('admin')
