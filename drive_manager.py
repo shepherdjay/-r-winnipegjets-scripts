@@ -48,7 +48,7 @@ class DriveManager():
         if debug:
             level = logging.DEBUG
 
-        logging.basicConfig(level=level, filename="drive_manger.log", filemode="a+",
+        logging.basicConfig(level=level, filename="drive_manager.log", filemode="a+",
                             format="%(asctime)-15s %(levelname)-8s %(message)s")
         log = logging.getLogger("drive_manager")
 
@@ -233,7 +233,7 @@ class DriveManager():
             log.info("Done reading column")
 
             # make everything lowercase
-            data =  worksheet.col_values(column)[remove_headers:]
+            data = worksheet.col_values(column)[remove_headers:]
             [row.lower() for row in data]
             return data
 
@@ -456,14 +456,16 @@ class DriveManager():
         data = self.get_all_sheet_lines(self.drive_files['answers']['id'], headers=False)
 
         if not data:
-            return unwritten_games
+            return []
 
         # trim empty lines
         data = self._remove_values_from_list(data, [""] * len(data[0]))
 
         #ranging so we can save the cell ID to overwrite on completion.
         for i in range(len(data)):
-            if data[i][self.MASTER_READY_COLUMN].lower() != self.MASTER_WRITE_STATE and data[i][0] != "":
+            if (data[i][self.MASTER_READY_COLUMN].lower() != self.MASTER_WRITE_STATE and 
+                data[i][0] != "" and 
+                data[i][7].lower() == "yes"):
                 unwritten_games.append({'game': data[i], 'row': i + 2})
 
         return unwritten_games
