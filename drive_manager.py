@@ -536,7 +536,7 @@ class DriveManager():
                                    reverse=True):
                 log.debug("Writting row %s/%s" % (row -2, len(new_data)))
 
-                worksheet.update_cell(row, 1, (row-2))
+                worksheet.update_cell(row, 1, new_data[username]['rank'])
                 worksheet.update_cell(row, 2, username)
                 worksheet.update_cell(row, 3, new_data[username]['curr'])
                 worksheet.update_cell(row, 4, new_data[username]['last'])

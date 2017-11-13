@@ -114,6 +114,47 @@ def create_game_history(game):
 
         return new_sheet
 
+def add_user_rankings(data):
+    """Takes a users points and games played, compares it to the list of everyone else and returns
+    their position relative to everyone else.
+
+    user: user we are trying to rank
+    everyone: everyones data
+    last_rank: last rank that was used. Are we a new rank or a tied rank?
+    """
+    current_rank = 1
+    rankings = {}
+    new_leaderdata = {}
+
+    # goes through the list and count the people that share the common position and games played.
+    for username in sorted(data, key=lambda x:(data[x]['curr'],
+                                                 -data[x]['played']), 
+                                   reverse=True):
+        key = (data[username]['curr'], data[username]['played'])
+
+        if key not in rankings:
+            rankings[key] = {'rank': current_rank, 'tie': False}
+        else:
+            rankings[key] = {'rank': rankings[key]['rank'] + 1, 'tie': True}
+        current_rank += 1
+
+
+    for username, scores in data.items():
+        key = (scores['curr'], scores['played'])
+        if rankings[key]['tie']:
+            new_leaderdata[username] = {'curr': scores['curr'], 
+                                    'last': scores['last'], 
+                                    'played': scores['played'],
+                                    'rank': "t" + str(rankings[key]['rank'])}
+
+        else:
+            new_leaderdata[username] = {'curr': scores['curr'], 
+                                    'last': scores['last'], 
+                                    'played': scores['played'],
+                                    'rank': rankings[key]['rank']}
+
+    return new_leaderdata
+
 def add_new_user_points(new_answers, leaders):
     """takes the new list of entier (new_answers) and adds their total to their 
     current score and/or adds them as a new user entry if they haven'r played before
@@ -137,6 +178,8 @@ def add_new_user_points(new_answers, leaders):
                 new_leaderboard[username] = {'curr': int(points['curr']), 'last': 0, 'played': int(points['played'])}
             else:
                 new_leaderboard[username] = {'curr': int(points), 'last': 0, 'played': int(curr_points['played'])}
+
+    new_leaderboard = add_user_rankings(new_leaderboard)
 
     return new_leaderboard
 
