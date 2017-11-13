@@ -262,23 +262,25 @@ def gwg_poster_runner(team=-1):
 
     game_day = is_game_day(team)
     already_posted = already_posted_gwg(get_reddit_from_team_id(team))
+
     if game_day and not already_posted:
         init_gdrive(team)
 
         url = gameday_form_available(team)
         team_name = get_reddit_from_team_id(team)
+
         if url:
             result = attempt_new_gwg_post(url, team=team)
             if not result:
                 subject = ("Failed to post GWG to %s" % team_name)
                 alert_gwg_owners(team, 
-                    subject=subject,
-                    body="Unable to create new gwg post. Sorry, we will try later.")
+                                subject=subject,
+                                body="Unable to create new gwg post. Sorry, we will try later.")
             else:
                 subject = ("Success posting todays GWG to %s!" % team_name)
                 alert_gwg_owners(team, 
-                    subject=subject,
-                    body=("Hi! Just letting you know that todays GWG post has been successfully posted to /r/%s here %s. Good luck!" % (team_name, result.shortlink)))
+                                subject=subject,
+                                body=("Hi! Just letting you know that todays GWG post has been successfully posted to /r/%s here %s. Good luck!" % (team_name, result.shortlink)))
         else:
             alert_gwg_owners(team)
     elif not game_day:
