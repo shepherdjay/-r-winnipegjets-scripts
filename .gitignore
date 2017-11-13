@@ -1,4 +1,5 @@
 client_secret.json
 application_secret.json
 *.pyc
+*.log
 praw_login.py

@@ -1,6 +1,7 @@
 import json
 import argparse
 import traceback
+import logging
 from datetime import date
 from urllib.request import urlopen
 from datetime import datetime
@@ -14,6 +15,7 @@ gdrive = None
 game_history = None
 participating_teams = [52]
 cached_inbox = None
+log = None
 
 def _update_todays_game(team):
     """Updates todays date with and game day info."""
@@ -35,8 +37,8 @@ def _update_todays_game(team):
             game_history = json.load(data)['dates']
             return
         except Exception as e:
-            print ("exception occurred in is_game_day trying again shortly")
-            print (str(e))
+            log.error("exception occurred in is_game_day trying again shortly")
+            log.error(str(e))
             sleep(15)
 
     game_history = None
@@ -137,7 +139,7 @@ def refresh_inbox_pms():
     global cached_inbox
 
     if not cached_inbox or datetime.now() - cached_inbox['time'] < datetime.timedelta(hours=1, minutes=30):
-        print ("Refreshing mailbox")
+        log.info("Refreshing mailbox")
         cached_inbox = {'mail': r.inbox.sent(limit=64), 'time': datetime.now()}
 
 def already_sent_reminder(owner):
@@ -153,13 +155,13 @@ def already_sent_reminder(owner):
         if (message.dest.name.lower() == owner.lower() and 
             "Hey you!" in message.body and
             sent_today) and not gwg_args.test:
-            print ("We've already alerted %s. Ignoring the warning" % owner)
+            log.info("We've already alerted %s. Ignoring the warning" % owner)
             return True
 
     if gwg_args.test:
-        print ("Sending a PM because of test mode")
+        log.info("Sending a PM because of test mode")
     else:
-        print ("We haven't alerted %s yet. Sending a PM." % owner)
+        log.info("We haven't alerted %s yet. Sending a PM." % owner)
     return False
 
 def alert_gwg_owners(team, body=None):
@@ -185,8 +187,8 @@ def alert_gwg_owners(team, body=None):
                 r.redditor(owner).message(subject, body)
                 success = True
             except Exception as e:
-                print ("Exception trying to mail redditer %s. Waiting 60 and trying again." % owner)
-                print(traceback.print_stack())
+                log.error("Exception trying to mail redditer %s. Waiting 60 and trying again." % owner)
+                log.error(traceback.print_stack())
                 attempts += 1
                 sleep(60)
         if not success:
@@ -200,7 +202,7 @@ def attempt_new_gwg_post(team=-1):
 
     # message my owner and cry that we don't have a form to post
     if not gwg_form:
-        print ("No gwg form found for game day! Alerting owners of GWG challenge and continuing.")
+        log.info("No gwg form found for game day for team %s! Alerting owners of GWG challenge and continuing." % team)
         alert_gwg_owners(team)
         return True
 
@@ -210,10 +212,10 @@ def attempt_new_gwg_post(team=-1):
     reddit_name = get_reddit_from_team_id(team)
     try:
         r.subreddit(reddit_name).submit(title, selftext=contents)
-        print ("Successfully posted new thread to %s!" % reddit_name)
+        log.info("Successfully posted new thread to %s!" % reddit_name)
     except Exception as e:
-        print ("failed to post new thread to subreddit with error %s" % e )
-        print(traceback.print_stack())
+        log.error("failed to post new thread to subreddit with error %s" % e )
+        log.error(traceback.print_stack())
         return False
     return True
 
@@ -235,7 +237,7 @@ def already_posted_gwg(team):
         if (submission.subreddit_name_prefixed.lower() == "r/" + team.lower() and 
             posted_today and
             "GWG" in submission.title):
-            print ("We posted the GWG already! Ignore this beast!")
+            log.info("We posted the GWG already for team %s! Ignore this beast!" % team)
             return True
     return False
 
@@ -252,10 +254,19 @@ def gwg_poster_runner(team=-1):
         if not attempt_new_gwg_post(team=team):
             alert_gwg_owners(team, body="Unable to create new gwg post. Sorry, will try later.")
     else:
-        print ("Doing nothing since it isn't game day.")
+        log.info("Doing nothing since it isn't game day for team %s." % team)
 
 def main():
+
+    if gwg_args.test:
+        gwg_poster_runner(-1)
+    else:
+        for team in participating_teams:
+            gwg_poster_runner(team)
+
+def setup():
     global gwg_args
+    global log
 
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
@@ -265,11 +276,15 @@ def main():
 
     gwg_args = parser.parse_args()
 
+    level = logging.INFO
     if gwg_args.test:
-        gwg_poster_runner(-1)
-    else:
-        for team in participating_teams:
-            gwg_poster_runner(team)
+        level = logging.DEBUG
+
+    logging.basicConfig(level=level, filename="gwg_poster.log", filemode="a+",
+                        format="%(asctime)-15s %(levelname)-8s %(message)s")
+    log = logging.getLogger("gwg_poster")
+    log.info("Stared gwg_poster")
 
 if __name__ == '__main__':
-   main()
+    setup()
+    main()
