@@ -13,6 +13,7 @@ gwg_args = None
 gdrive = None
 game_history = None
 participating_teams = [52]
+cached_inbox = None
 
 def _update_todays_game(team):
     """Updates todays date with and game day info."""
@@ -26,14 +27,19 @@ def _update_todays_game(team):
         team = 52
         today = "2017-11-16"
 
-    try:
-        data = urlopen("https://statsapi.web.nhl.com/api/v1/schedule?site=en_nhlCA&expand=schedule.teams,schedule.linescore,schedule.broadcasts.all&startDate=" + today + "&endDate=" + today + "&teamId=" + str(team))
-        game_history = json.load(data)['dates']
-        
-    except Exception as e:
-        game_history = None
-        print ("exception occurred in is_game_day")
-        print (str(e))
+    attempts = 0
+    while attempts < 2:
+        try:
+            attempts +=1
+            data = urlopen("https://statsapi.web.nhl.com/api/v1/schedule?site=en_nhlCA&expand=schedule.teams,schedule.linescore,schedule.broadcasts.all&startDate=" + today + "&endDate=" + today + "&teamId=" + str(team))
+            game_history = json.load(data)['dates']
+            return
+        except Exception as e:
+            print ("exception occurred in is_game_day trying again shortly")
+            print (str(e))
+            sleep(15)
+
+    game_history = None
 
 def is_game_day(team):
     """Checks if the Winnipeg jets are playing today. If so, returns true."""
@@ -51,21 +57,24 @@ def _get_team_name(home=True):
     return game_history[0]['games'][0]['teams'][team_type]['team']['teamName']
 
 def _get_game_number(team):
-    """Returns what game number it is for team team."""
+    """Returns what the next game number it is for team team."""
+
+    if team == -1:
+        team = 52
 
     win = loss = otl = 0
-
-    if game_history[0]['games'][0]['teams']['home']['team']['id'] == team:
+    if str(game_history[0]['games'][0]['teams']['home']['team']['id']) == str(team):
         win = game_history[0]['games'][0]['teams']['home']['leagueRecord']['wins']
         loss = game_history[0]['games'][0]['teams']['home']['leagueRecord']['losses']
         otl = game_history[0]['games'][0]['teams']['home']['leagueRecord']['ot']
-
     else:
         win = game_history[0]['games'][0]['teams']['away']['leagueRecord']['wins']
         loss = game_history[0]['games'][0]['teams']['away']['leagueRecord']['losses']
         otl = game_history[0]['games'][0]['teams']['away']['leagueRecord']['ot']
 
     # +1 because 'next' game.
+    if gwg_args.game83:
+        return "83"
     return str(win + loss + otl + 1)
 
 def _get_date():
@@ -92,15 +101,16 @@ def generate_post_title(team=52):
 
 def generate_post_contents(gwg_link):
     """create the threads body. include the form link for participation."""
+    leader_link = gdrive.get_drive_filetype('leaderboard')['alternateLink']
     
     return  ("""[Link to current GWG challenge](%s)  \n\n
-
 Please comment here immediately ('done' or a general comment about the challenge) following their GWG form submission to add a layer of security on your entry. If you don't comment and someone else types your user name into the form for an entry your GWG entry will be void! Avoid this by commenting so we can cross reference the form submission time with the Reddit comment time. \n\n
 Every Correct answer you get gives you a point in the standings and at the end of the season the point leader will get a custom flair (Thanks KillEmAll!)!  \n\n
 If at the end of the season two people are tied the win will go to whoever had the least GWG entries in total! If they both had the same amount of games played we will tie break on   \n\n
-[Current Standings](https://docs.google.com/spreadsheets/d/1N_xQCv7pMJKb3yV2KYe0a2ukUV3o73Npv2b3lX2QZD8/edit?usp=sharing)  \n\n
+[Current Standings](%s)  \n\n
 As always, if you find any issues please PM me directly and we will sort out any/all issues.  \n\n
-NOTE: LATE ENTIRES WILL NOT BE ACCEPTED ANYTIME AFTER SCHEDULED GAME START UNLESS THERE IS AN OFFICAL GAME DELAY OF SOME SORT""" % gwg_link)
+NOTE: LATE ENTIRES WILL NOT BE ACCEPTED ANYTIME AFTER SCHEDULED GAME START UNLESS THERE IS AN OFFICAL GAME DELAY OF SOME SORT""" 
+% (gwg_link, leader_link))
 
 def get_gwg_contact(team):
     """take a team and returns a list of people that should be contacted if there is an issues with 
@@ -123,6 +133,35 @@ def get_reddit_from_team_id(team):
 
     return teams.get(str(team), None)
 
+def refresh_inbox_pms():
+    global cached_inbox
+
+    if not cached_inbox or datetime.now() - cached_inbox['time'] < datetime.timedelta(hours=1, minutes=30):
+        print ("Refreshing mailbox")
+        cached_inbox = {'mail': r.inbox.sent(limit=64), 'time': datetime.now()}
+
+def already_sent_reminder(owner):
+    """Checks if we've already reminded someone about them needing to create a GWG form. 
+    If so, returns True, if not, returns false. No need to spam the users.
+    """
+
+    refresh_inbox_pms()
+
+    for message in cached_inbox['mail']:
+        sent_today = check_same_day(message.created_utc)
+
+        if (message.dest.name.lower() == owner.lower() and 
+            "Hey you!" in message.body and
+            sent_today) and not gwg_args.test:
+            print ("We've already alerted %s. Ignoring the warning" % owner)
+            return True
+
+    if gwg_args.test:
+        print ("Sending a PM because of test mode")
+    else:
+        print ("We haven't alerted %s yet. Sending a PM." % owner)
+    return False
+
 def alert_gwg_owners(team, body=None):
     """Direct messages the owners of the GWG challenge that there isn't a form available
     for todays game and that their players are angry!!!
@@ -136,6 +175,9 @@ def alert_gwg_owners(team, body=None):
 
     mail_success = True
     for owner in owners:
+        if already_sent_reminder(owner):
+            continue
+
         success = False
         attempts = 0
         while not success and attempts < 5:
@@ -158,6 +200,7 @@ def attempt_new_gwg_post(team=-1):
 
     # message my owner and cry that we don't have a form to post
     if not gwg_form:
+        print ("No gwg form found for game day! Alerting owners of GWG challenge and continuing.")
         alert_gwg_owners(team)
         return True
 
@@ -169,21 +212,28 @@ def attempt_new_gwg_post(team=-1):
         r.subreddit(reddit_name).submit(title, selftext=contents)
         print ("Successfully posted new thread to %s!" % reddit_name)
     except Exception as e:
-        print ("failed to pist new thread to subreddit with error %s" % e )
+        print ("failed to post new thread to subreddit with error %s" % e )
         print(traceback.print_stack())
         return False
     return True
 
-def already_posted_gwg(team):
-    """Checks if we've already posted the GWG thread in the team team sub"""
+def check_same_day(requested_date):
+    """checks if requested_date is the same as today."""
     today = date.today()
 
-    for submission in r.redditor(USER_NAME).submissions.new():
-        posted_time = datetime.fromtimestamp(submission.created_utc)
-        posted_time = date(posted_time.year, posted_time.month, posted_time.day)
+    posted_time = datetime.fromtimestamp(requested_date)
+    posted_time = date(posted_time.year, posted_time.month, posted_time.day)
 
+    return posted_time == today
+
+def already_posted_gwg(team):
+    """Checks if we've already posted the GWG thread in the team team sub"""
+
+    for submission in r.redditor(USER_NAME).submissions.new():
+        posted_today = check_same_day(submission.created_utc)
+        
         if (submission.subreddit_name_prefixed.lower() == "r/" + team.lower() and 
-            posted_time == today and
+            posted_today and
             "GWG" in submission.title):
             print ("We posted the GWG already! Ignore this beast!")
             return True
@@ -211,6 +261,8 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--test', '-t' ,action='store_true', help='Run in test mode with team -1')
     group.add_argument('--prod', '-p', action='store_true', help='Run in production mode with full subscribed team list')
+    parser.add_argument('--game83', action='store_true', help='forces a GWG challenge to not be present', default=False)
+
     gwg_args = parser.parse_args()
 
     if gwg_args.test:
