@@ -133,7 +133,7 @@ def alert_gwg_owners(team, body=None):
     if not body:
         today = date.today()
         body = "Hey you! Log in and make a form for todays GWG challenge, ya bum! It's {} and your team plays today. Get on it!!!".format(today)
-    
+
     mail_success = True
     for owner in owners:
         success = False
@@ -147,7 +147,6 @@ def alert_gwg_owners(team, body=None):
                 print(traceback.print_stack())
                 attempts += 1
                 sleep(60)
-                continue
         if not success:
             mail_success = False
     return mail_success
