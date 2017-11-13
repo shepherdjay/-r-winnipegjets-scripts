@@ -27,7 +27,7 @@ def _update_todays_game(team):
 
     if gwg_args.test:
         team = 52
-        today = "2017-11-16"
+        today = "2017-11-14"
 
     attempts = 0
     while attempts < 2:
@@ -37,7 +37,7 @@ def _update_todays_game(team):
             game_history = json.load(data)['dates']
             return
         except Exception as e:
-            log.error("exception occurred in is_game_day trying again shortly")
+            log.error("exception occurred in is_game_day. Trying again shortly")
             log.error(str(e))
             sleep(15)
 
@@ -60,24 +60,32 @@ def _get_team_name(home=True):
 
 def _get_game_number(team):
     """Returns what the next game number it is for team team."""
-
-    if team == -1:
-        team = 52
-
     win = loss = otl = 0
-    if str(game_history[0]['games'][0]['teams']['home']['team']['id']) == str(team):
-        win = game_history[0]['games'][0]['teams']['home']['leagueRecord']['wins']
-        loss = game_history[0]['games'][0]['teams']['home']['leagueRecord']['losses']
-        otl = game_history[0]['games'][0]['teams']['home']['leagueRecord']['ot']
-    else:
-        win = game_history[0]['games'][0]['teams']['away']['leagueRecord']['wins']
-        loss = game_history[0]['games'][0]['teams']['away']['leagueRecord']['losses']
-        otl = game_history[0]['games'][0]['teams']['away']['leagueRecord']['ot']
+    result = None
+    team = str(team)
+    if team == "-1":
+        team = "52"
 
-    # +1 because 'next' game.
+    game = game_history[0]['games'][0]['teams']
+    if str(game['home']['team']['id']) == team:
+        game = game['home']['leagueRecord']
+        win = game['wins']
+        loss = game['losses']
+        otl = game['ot']
+    else:
+        game = game['home']['leagueRecord']
+        win = game['wins']
+        loss = game['losses']
+        otl = game['ot']
+
     if gwg_args.game83:
-        return "83"
-    return str(win + loss + otl + 1)
+        result = "83"
+    else:
+        # +1 because 'next' game
+        result = str(win + loss + otl + 1)
+
+    log.debug("We're using game %s" % result)
+    return result
 
 def _get_date():
     """Returns todays date as a nice string"""
@@ -99,7 +107,11 @@ def generate_post_title(team=52):
     game_number = _get_game_number(team)
     game_date = _get_date()
 
-    return away + " @ " + home + " " + game_date + " GWG Challenge #" + str(game_number)
+    result = away + " @ " + home + " " + game_date + " GWG Challenge #" + str(game_number)
+
+    if gwg_args.test:
+        return result + "(Testing Post)"
+    return result
 
 def generate_post_contents(gwg_link):
     """create the threads body. include the form link for participation."""
@@ -119,12 +131,7 @@ def get_gwg_contact(team):
     the gwg form not being ready on time.
     """
 
-    contacts = {
-        -1: DEFAULT_USERS,
-        52: DEFAULT_USERS,
-    }
-
-    return contacts.get(team, DEFAULT_USERS)
+    return gdrive.get_team_contacts(team)
 
 def get_reddit_from_team_id(team):
     """returns a subreddit from a passed teamid"""
@@ -164,13 +171,15 @@ def already_sent_reminder(owner):
         log.info("We haven't alerted %s yet. Sending a PM." % owner)
     return False
 
-def alert_gwg_owners(team, body=None):
+def alert_gwg_owners(team, subject=None, body=None):
     """Direct messages the owners of the GWG challenge that there isn't a form available
     for todays game and that their players are angry!!!
     """
 
     owners = get_gwg_contact(team)
-    subject = "GWG form not created yet for \\r\\" + get_reddit_from_team_id(team)
+    if not subject:
+        subject = "GWG form not created yet for r/" + get_reddit_from_team_id(team)
+
     if not body:
         today = date.today()
         body = "Hey you! Log in and make a form for todays GWG challenge, ya bum! It's {} and your team plays today. Get on it!!!".format(today)
@@ -195,29 +204,20 @@ def alert_gwg_owners(team, body=None):
             mail_success = False
     return mail_success
 
-def attempt_new_gwg_post(team=-1):
+def attempt_new_gwg_post(url, team=-1):
     """Submits, creates and posts the GWG challenge post."""
 
-    gwg_form = gdrive.get_gameday_form(_get_game_number(team))
-
-    # message my owner and cry that we don't have a form to post
-    if not gwg_form:
-        log.info("No gwg form found for game day for team %s! Alerting owners of GWG challenge and continuing." % team)
-        alert_gwg_owners(team)
-        return True
-
-    url = gwg_form['embedLink']
     title = generate_post_title()
     contents = generate_post_contents(url)
     reddit_name = get_reddit_from_team_id(team)
     try:
-        r.subreddit(reddit_name).submit(title, selftext=contents)
+        result = r.subreddit(reddit_name).submit(title, selftext=contents)
         log.info("Successfully posted new thread to %s!" % reddit_name)
+        return result
     except Exception as e:
         log.error("failed to post new thread to subreddit with error %s" % e )
         log.error(traceback.print_stack())
-        return False
-    return True
+        return None
 
 def check_same_day(requested_date):
     """checks if requested_date is the same as today."""
@@ -241,6 +241,18 @@ def already_posted_gwg(team):
             return True
     return False
 
+def gameday_form_available(team):
+    gwg_form = gdrive.get_gameday_form(_get_game_number(team))
+
+
+    # message my owner and cry that we don't have a form to post
+    if not gwg_form:
+        log.info("No gwg form found for game day for team %s! Alerting owners of GWG challenge and continuing." % team)
+        return False
+
+    log.info("gwg form found for game day and team %s" % team)
+    return gwg_form['embedLink']
+
 def init_gdrive(team):
     global gdrive
     gdrive = DriveManager(team=str(team))
@@ -248,13 +260,31 @@ def init_gdrive(team):
 def gwg_poster_runner(team=-1):
     """Checks if we need to post a new thread and if so, does it."""
 
-    if is_game_day(team) and not already_posted_gwg(get_reddit_from_team_id(team)):
+    game_day = is_game_day(team)
+    already_posted = already_posted_gwg(get_reddit_from_team_id(team))
+    if game_day and not already_posted:
         init_gdrive(team)
 
-        if not attempt_new_gwg_post(team=team):
-            alert_gwg_owners(team, body="Unable to create new gwg post. Sorry, will try later.")
-    else:
+        url = gameday_form_available(team)
+        team_name = get_reddit_from_team_id(team)
+        if url:
+            result = attempt_new_gwg_post(url, team=team)
+            if not result:
+                subject = ("Failed to post GWG to %s" % team_name)
+                alert_gwg_owners(team, 
+                    subject=subject,
+                    body="Unable to create new gwg post. Sorry, we will try later.")
+            else:
+                subject = ("Success posting todays GWG to %s!" % team_name)
+                alert_gwg_owners(team, 
+                    subject=subject,
+                    body=("Hi! Just letting you know that todays GWG post has been successfully posted to /r/%s here %s. Good luck!" % (team_name, result.shortlink)))
+        else:
+            alert_gwg_owners(team)
+    elif not game_day:
         log.info("Doing nothing since it isn't game day for team %s." % team)
+    elif already_posted:
+        log.info("Already posted GWG challenge today %s." % team)
 
 def main():
 
