@@ -227,10 +227,10 @@ class DriveManager():
             by default assume fist sheet in workbook
         """
         try:
-            log.info("Reading column %s from sheet %s with id: %s" % (column, sheet, file_id))
+            log.debug("Reading column %s from sheet %s with id: %s" % (column, sheet, file_id))
             spreadsheet = self.gc.open_by_key(file_id)
             worksheet = spreadsheet.get_worksheet(sheet)
-            log.info("Done reading column")
+            log.debug("Done reading column")
 
             # make everything lowercase
             data = worksheet.col_values(column)[remove_headers:]
