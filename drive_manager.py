@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import sys
 import json
@@ -22,6 +24,11 @@ APPLICATION_SECRET_FILE = 'application_secret.json'
 APPLICATION_NAME = 'GWG Leaderboard Updater'
 APPLICATION_SECRETS = None
 
+try:
+    import argparse
+    flags = tools.argparser.parse_args([])
+except ImportError:
+    flags = None
 
 class DriveManager():
     gc = None
@@ -32,8 +39,10 @@ class DriveManager():
     MASTER_LEADERBOARD_ADDED_COLUMN = 9
     MASTER_WRITE_STATE = "yes"
 
-    def __init__(self):
+    def __init__(self, team="52", silent=False):
         """init google drive management objects"""
+        self.silent = silent
+        self.team_folder = team
         self._load_application_secrets()
 
         credentials = self._get_credentials()
@@ -78,14 +87,13 @@ class DriveManager():
 
     def _empty_drive_files(self):
         """returns the clean struct for drive file management."""
-        return {'responses': [], 'answers': None, 'leaderboard': None, 'other': None}
+        return {'responses': [], 'answers': None, 'leaderboard': None, 'other': None, 'forms': []}
 
     def _load_application_secrets(self):
         """Loads the application secrets that aren't oauth related"""
 
         with open(APPLICATION_SECRET_FILE) as json_data:
             self.APPLICATION_SECRETS = json.load(json_data)
-
 
     def _extract_GWG_title(self, title):
         """takes a string, extracts the number in the name and returns GMX where X is 1< X <= 82"""
@@ -147,7 +155,7 @@ class DriveManager():
     def get_all_drive_file_metadatas(self):
         """Logs into google drive and lists all the file resource that are in the main wpg jets directory."""
 
-        folder = self.APPLICATION_SECRETS['main_folder']
+        folder = self.APPLICATION_SECRETS[self.team_folder]
 
         try:
             param = {}
@@ -351,22 +359,30 @@ class DriveManager():
                 filename = file['title'].lower()
                 if 'leaderboard' in filename:
                     if not new_drive_files['leaderboard']:
-                        print("Found leaderboard file!")
+                        if not self.silent:
+                            print("Found leaderboard file!")
                         new_drive_files['leaderboard'] = file
                     else:
                         print ("Second leaderboard found but we're ignoring it.")
                 elif 'answer' in filename:
                     if not new_drive_files['answers']:
                         new_drive_files['answers'] = file
-                        print ("Found answer key!")
+                        if not self.silent:
+                            print ("Found answer key!")
                     else:
                         print ("Second answerkey found but we're ignoring it.")
                 elif 'response' in filename:
-                    print ("Found a response!")
+                    if not self.silent:
+                        print ("Found a response!")
                     new_drive_files['responses'].append(file)
                 else:
-                    print ("Found a weird other file named %s" % filename)
+                    if not self.silent:
+                        print ("Found a weird other file named %s" % filename)
                     new_drive_files['other'].append(file)
+            if 'form' in file_type:
+                if not self.silent:
+                    print("Found a regular form!")
+                new_drive_files['forms'].append(file)
 
         self.drive_files = new_drive_files
         print ("Completed updating google drive files files.")
@@ -560,3 +576,12 @@ class DriveManager():
             print ('An error occurred: %s' % error)
             print (traceback.print_exc())
             sys.exit(-1)
+
+    def get_gameday_form(self, form_num):
+        """attempts to get a form named GWG formnum. Returns None if there isn't one."""
+
+        for form in self.drive_files['forms']:
+            if form['title'].lower() == "gwg " + str(form_num):
+                return form
+
+        return None
