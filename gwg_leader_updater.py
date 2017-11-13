@@ -145,7 +145,7 @@ def add_user_rankings(data):
             new_leaderdata[username] = {'curr': scores['curr'], 
                                     'last': scores['last'], 
                                     'played': scores['played'],
-                                    'rank': "t" + str(rankings[key]['rank'])}
+                                    'rank': "T" + str(rankings[key]['rank'])}
 
         else:
             new_leaderdata[username] = {'curr': scores['curr'], 
