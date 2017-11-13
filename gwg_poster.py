@@ -303,11 +303,12 @@ def setup():
     group.add_argument('--test', '-t' ,action='store_true', help='Run in test mode with team -1')
     group.add_argument('--prod', '-p', action='store_true', help='Run in production mode with full subscribed team list')
     parser.add_argument('--game83', action='store_true', help='forces a GWG challenge to not be present', default=False)
+    parser.add_argument('--debug', '-d', action='store_true', help='debug messages turned on', default=False)
 
     gwg_args = parser.parse_args()
 
     level = logging.INFO
-    if gwg_args.test:
+    if gwg_args.debug:
         level = logging.DEBUG
 
     logging.basicConfig(level=level, filename="gwg_poster.log", filemode="a+",
