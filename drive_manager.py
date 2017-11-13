@@ -536,18 +536,19 @@ class DriveManager():
                                    reverse=True):
                 log.debug("Writting row %s/%s" % (row -2, len(new_data)))
 
-                worksheet.update_cell(row, 1, username)
-                worksheet.update_cell(row, 2, new_data[username]['curr'])
-                worksheet.update_cell(row, 3, new_data[username]['last'])
-                worksheet.update_cell(row, 4, str(new_data[username]['played']) + "/" + str(num_games))
+                worksheet.update_cell(row, 1, (row-2))
+                worksheet.update_cell(row, 2, username)
+                worksheet.update_cell(row, 3, new_data[username]['curr'])
+                worksheet.update_cell(row, 4, new_data[username]['last'])
+                worksheet.update_cell(row, 5, str(new_data[username]['played']) + "/" + str(num_games))
 
                 prev_winner = special_users.get(username)
 
                 #if its a winner, restate their winningness, otherwise clear the column
                 if prev_winner:
-                    worksheet.update_cell(row, 5, prev_winner)
+                    worksheet.update_cell(row, 6, prev_winner)
                 else:
-                    worksheet.update_cell(row, 5, "")
+                    worksheet.update_cell(row, 6, "")
                 row += 1
             log.debug("Done overwritting data")
             return True
