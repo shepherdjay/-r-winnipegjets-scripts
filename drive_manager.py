@@ -385,7 +385,7 @@ class DriveManager():
                 new_drive_files['forms'].append(file)
 
         self.drive_files = new_drive_files
-        print ("Completed updating google drive files files.")
+        print ("Completed google drive file collection.")
         return True
 
     def get_leaderboard_ready_files(self):
