@@ -5,6 +5,7 @@ import sys
 import json
 import httplib2
 import traceback
+import logging
 from datetime import datetime as dt
 from time import sleep
 
@@ -23,6 +24,7 @@ CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_SECRET_FILE = 'application_secret.json'
 APPLICATION_NAME = 'GWG Leaderboard Updater'
 APPLICATION_SECRETS = None
+log = None
 
 try:
     import argparse
@@ -39,9 +41,17 @@ class DriveManager():
     MASTER_LEADERBOARD_ADDED_COLUMN = 9
     MASTER_WRITE_STATE = "yes"
 
-    def __init__(self, team="52", silent=False):
+    def __init__(self, team="52", debug=False):
         """init google drive management objects"""
-        self.silent = silent
+        global log
+        level = logging.INFO
+        if debug:
+            level = logging.DEBUG
+
+        logging.basicConfig(level=level, filename="drive_manger.log", filemode="a+",
+                            format="%(asctime)-15s %(levelname)-8s %(message)s")
+        log = logging.getLogger("drive_manager")
+
         self.team_folder = team
         self._load_application_secrets()
 
@@ -126,7 +136,7 @@ class DriveManager():
                 credentials = tools.run_flow(flow, store, flags)
             else: # Needed only for compatibility with Python 2.6
                 credentials = tools.run(flow, store)
-            print('Storing credentials to ' + credential_path)
+            log.debug('Storing credentials to ' + credential_path)
         return credentials
 
     def _remove_values_from_list(self, the_list, val=""):
@@ -159,13 +169,13 @@ class DriveManager():
 
         try:
             param = {}
-            print ("Getting all of the google drive files...")
+            log.debug("Getting all of the google drive files...")
             children = self.service.children().list(folderId=folder, **param).execute()
-            print ("received list of all google drive files")
+            log.debug("received list of all google drive files")
 
         except errors.HttpError as error:
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             return None
 
         return self._collect_file_metadata(children['items'])
@@ -174,16 +184,16 @@ class DriveManager():
         """this will go through, investigate each item and print the details about it"""
 
         results = []
-        print ("Collecting all file metadata...")
+        log.debug("Collecting all file metadata...")
         for file in files:
             try:
                 results.append(self.service.files().get(fileId=file['id']).execute())
 
             except errors.HttpError as error:
-                print ('An error occurred: %s' % error)
-                print (traceback.print_exc())
+                log.error('An error occurred: %s' % error)
+                log.error(traceback.print_exc())
 
-        print ("Collected all file meta datas.")
+        log.debug("Collected all file meta datas.")
         return results
 
     def get_all_sheet_lines(self, file_id, headers=True, sheet=0):
@@ -194,7 +204,7 @@ class DriveManager():
         """
 
         try:
-            print ("Reading sheet with id: %s" % file_id)
+            log.debug("Reading sheet with id: %s" % file_id)
             spreadsheet = self.gc.open_by_key(file_id)
             worksheet = spreadsheet.get_worksheet(sheet)
 
@@ -202,13 +212,13 @@ class DriveManager():
             if not headers:
                 results = results[1:]
 
-            print ("Done reading sheet")
+            log.debug("Done reading sheet")
             return results
 
         except Exception as error:
-            print ('attemped to open with key: %s' % file_id)
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('attemped to open with key: %s' % file_id)
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             sys.exit(-1)
 
     def get_sheet_single_column(self, file_id, column, sheet=0, remove_headers=0):
@@ -217,10 +227,10 @@ class DriveManager():
             by default assume fist sheet in workbook
         """
         try:
-            print ("Reading column %s from sheet %s with id: %s" % (column, sheet, file_id))
+            log.info("Reading column %s from sheet %s with id: %s" % (column, sheet, file_id))
             spreadsheet = self.gc.open_by_key(file_id)
             worksheet = spreadsheet.get_worksheet(sheet)
-            print ("Done reading column")
+            log.info("Done reading column")
 
             # make everything lowercase
             data =  worksheet.col_values(column)[remove_headers:]
@@ -228,9 +238,9 @@ class DriveManager():
             return data
 
         except Exception as error:
-            print ('attemped to open with key: %s on sheet %s' % (file_id, sheet))
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('attemped to open with key: %s on sheet %s' % (file_id, sheet))
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             sys.exit(-1)
 
     def get_file_entries(self, file_data):
@@ -240,7 +250,7 @@ class DriveManager():
         this parameter passed will only have 1 file in it, but this may not be the case.
         """
 
-        print ("Getting file enteries for file %s" % file_data['id'])
+        log.debug("Getting file enteries for file %s" % file_data['id'])
         try:
             spreadsheet = self.gc.open_by_key(file_data['id'])
             worksheet = spreadsheet.get_worksheet(0)
@@ -248,12 +258,12 @@ class DriveManager():
             return {'name': name, 'data':worksheet.get_all_values(), 'id':file_data['id']}
 
         except Exception as error:
-            print ('attempted to open with key: %s' % file_data['id'])
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('attempted to open with key: %s' % file_data['id'])
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             sys.exit(-1)
 
-        print ("Done getting file entry.")
+        log.debug("Done getting file entry.")
         return new_data
 
     def get_games_result(self, game_id):
@@ -262,7 +272,7 @@ class DriveManager():
         """
 
         results = {'title': [], 'result': []}
-        print ("Extracting game %s question results..." % game_id)
+        log.debug("Extracting game %s question results..." % game_id)
         try:
             spreadsheet = self.gc.open_by_key(self.drive_files['answers']['id'])
             worksheet = spreadsheet.get_worksheet(0)
@@ -278,15 +288,15 @@ class DriveManager():
                     #add line minus last column since that is the trigger for file being run.
                     results['result'] = line[:-1]
 
-                    print ("Done getting game results.")
+                    log.debug("Done getting game results.")
                     return results
-            print ("Failure finding game results.")
+            log.debug("Failure finding game results.")
             return results
 
         except Exception as error:
-            print ('attemped to open with key: %s' % game_id)
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('attemped to open with key: %s' % game_id)
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             return results
 
     def create_new_sheet(self, sheet_info):
@@ -303,7 +313,7 @@ class DriveManager():
         workbook = None
         new_worksheet = None
 
-        print ("adding new sheet %s to fileid %s" % (sheet_info['name'], sheet_info['id']))
+        log.debug("adding new sheet %s to fileid %s" % (sheet_info['name'], sheet_info['id']))
         try:
             workbook = self.gc.open_by_key(sheet_info['id'])
 
@@ -312,20 +322,20 @@ class DriveManager():
                                                     cols=1)
             for line in sheet_info['data']:
                 new_worksheet.append_row(line)
-            print ("Done creating and appending rows to file.")
+            log.debug("Done creating and appending rows to file.")
             return True
 
         except Exception as error:
-            print ('attemped to write new sheet in binder: %s' % leader_fileid)
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('attemped to write new sheet in binder: %s' % leader_fileid)
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             workbook.del_worksheet(new_worksheet)
             return False
 
     def get_all_books_sheets(self, bookid):
         """This will return all of the sheet names in the leaderboard book."""
 
-        print ("Trying to get all sheets in file %s" % bookid)
+        log.debug("Trying to get all sheets in file %s" % bookid)
         try:
             sh = self.gc.open_by_key(bookid)
             worksheets = sh.worksheets()
@@ -334,20 +344,20 @@ class DriveManager():
             for sheet in worksheets:
                 results.append(sheet.title)
 
-            print ("Success reading all sheets from file")
+            log.debug("Success reading all sheets from file")
             return results
 
         except Exception as error:
-            print ('Attemped to read all sheets in file: %s' % bookid)
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('Attemped to read all sheets in file: %s' % bookid)
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             return None
 
     def update_drive_files(self):
         """This will take a list of files, and update the global variable that manages all these files."""
 
         #TODO: update this such that we detect if we have two leaderboard files etc etc
-        print ("Updating google drive files...")
+        log.debug("Updating google drive files...")
 
         new_drive_files = self._empty_drive_files()
         files = self.get_all_drive_file_metadatas()
@@ -359,33 +369,28 @@ class DriveManager():
                 filename = file['title'].lower()
                 if 'leaderboard' in filename:
                     if not new_drive_files['leaderboard']:
-                        if not self.silent:
-                            print("Found leaderboard file!")
+                        log.debug("Found leaderboard file!")
                         new_drive_files['leaderboard'] = file
                     else:
-                        print ("Second leaderboard found but we're ignoring it.")
+                        log.debug("Second leaderboard found but we're ignoring it.")
                 elif 'answer' in filename:
                     if not new_drive_files['answers']:
                         new_drive_files['answers'] = file
-                        if not self.silent:
-                            print ("Found answer key!")
+                        log.debug("Found answer key!")
                     else:
-                        print ("Second answerkey found but we're ignoring it.")
+                        log.debug("Second answerkey found but we're ignoring it.")
                 elif 'response' in filename:
-                    if not self.silent:
-                        print ("Found a response!")
+                    log.debug("Found a response!")
                     new_drive_files['responses'].append(file)
                 else:
-                    if not self.silent:
-                        print ("Found a weird other file named %s" % filename)
+                    log.debug("Found a weird other file named %s" % filename)
                     new_drive_files['other'].append(file)
             if 'form' in file_type:
-                if not self.silent:
-                    print("Found a regular form!")
+                log.debug("Found a regular form!")
                 new_drive_files['forms'].append(file)
 
         self.drive_files = new_drive_files
-        print ("Completed google drive file collection.")
+        log.debug("Completed google drive file collection.")
         return True
 
     def get_leaderboard_ready_files(self):
@@ -439,10 +444,7 @@ class DriveManager():
         Returns none if nothing matches the filetype passed.
         """
         result = self.drive_files.get(filetype)
-
-        if not result:
-            print("Tried to retreive %s but it isn't a drive file type we've sorted by." % filetype)
-
+        log.error("Tried to retreive %s but it isn't a drive file type we've sorted by." % filetype)
         return result
 
     def get_unwritten_leaderboard_games(self):
@@ -526,13 +528,13 @@ class DriveManager():
 
             row = 3
             num_games = len(spreadsheet.worksheets()) - 1
-            print ("Overwritting leaderboard main page")
+            log.debug("Overwritting leaderboard main page")
             for username in sorted(new_data, 
                                    key=lambda x:(new_data[x]['curr'],
                                                  -new_data[x]['played'],
                                                  new_data[x]['last']), 
                                    reverse=True):
-                print ("Writting row %s/%s" % (row -2, len(new_data)))
+                log.debug("Writting row %s/%s" % (row -2, len(new_data)))
 
                 worksheet.update_cell(row, 1, username)
                 worksheet.update_cell(row, 2, new_data[username]['curr'])
@@ -547,13 +549,13 @@ class DriveManager():
                 else:
                     worksheet.update_cell(row, 5, "")
                 row += 1
-            print ("Done overwritting data")
+            log.debug("Done overwritting data")
             return True
 
         except Exception as error:
-            print ('attemped to open file with key: %s' % (self.drive_files['leaderboard']['id']))
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('attemped to open file with key: %s' % (self.drive_files['leaderboard']['id']))
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             sys.exit(-1)
 
     def update_answerkey_results(self, rows):
@@ -566,15 +568,15 @@ class DriveManager():
             worksheet = spreadsheet.get_worksheet(0)
 
             for row in rows:
-                print ("Overwritting answer key results column for game %s" % (int(row) - 1))
+                log.debug("Overwritting answer key results column for game %s" % (int(row) - 1))
                 worksheet.update_cell(row, self.MASTER_LEADERBOARD_ADDED_COLUMN, self.MASTER_WRITE_STATE)
-            print ("Done overwritting data")
+            log.debug("Done overwritting data")
             return True
 
         except Exception as error:
-            print ('attemped to open with key: %s on sheet %s' % (self.drive_files['answers']['id'], 0))
-            print ('An error occurred: %s' % error)
-            print (traceback.print_exc())
+            log.error('attemped to open with key: %s on sheet %s' % (self.drive_files['answers']['id'], 0))
+            log.error('An error occurred: %s' % error)
+            log.error(traceback.print_exc())
             sys.exit(-1)
 
     def get_gameday_form(self, form_num):

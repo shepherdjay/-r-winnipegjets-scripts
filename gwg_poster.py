@@ -241,15 +241,15 @@ def already_posted_gwg(team):
             return True
     return False
 
-def init_gdrive(team="-1"):
+def init_gdrive(team):
     global gdrive
-    gdrive = DriveManager(team=team, silent=True)
+    gdrive = DriveManager(team=str(team))
 
 def gwg_poster_runner(team=-1):
     """Checks if we need to post a new thread and if so, does it."""
 
     if is_game_day(team) and not already_posted_gwg(get_reddit_from_team_id(team)):
-        init_gdrive(team=str(team))
+        init_gdrive(team)
 
         if not attempt_new_gwg_post(team=team):
             alert_gwg_owners(team, body="Unable to create new gwg post. Sorry, will try later.")
