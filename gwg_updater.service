@@ -1,0 +1,13 @@
+[Unit]
+Description=GWG Leaderboard Manager
+
+[Service]
+Environment="PYTHONPATH=/home/kyle/-r-winnipegjets-scripts"
+ExecStart=/usr/local/bin/python3.6 gwg_leader_updater.py
+WorkingDirectory=/home/kyle/-r-winnipegjets-scripts
+Type=simple                                                                     
+Restart=always                                                                  
+RestartSec=5                                                                    
+                                                                                
+[Install]                                                                       
+WantedBy=multi-user.target                                                      
