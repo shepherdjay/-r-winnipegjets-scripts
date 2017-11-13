@@ -1,8 +1,10 @@
 import json
 import argparse
+import traceback
 from datetime import date
 from urllib.request import urlopen
 from datetime import datetime
+from time import sleep
 
 from drive_manager import DriveManager
 from praw_login import r, DEFAULT_USERS, USER_NAME
@@ -38,7 +40,7 @@ def is_game_day(team):
 
     _update_todays_game(team)
 
-    return game_history != []
+    return game_history != [] and game_history != None
 
 def _get_team_name(home=True):
     """gets the team name of the requested home/away pairing"""
@@ -116,25 +118,41 @@ def get_reddit_from_team_id(team):
     """returns a subreddit from a passed teamid"""
 
     teams = {
-            -1.: "tehgoogler", 
-            52: "winnipegjets"}
+            "-1": "jets_bot", 
+            "52": "winnipegjets"}
 
-    return teams.get(team, None)
+    return teams.get(str(team), None)
 
-def alert_gwg_owners(team):
+def alert_gwg_owners(team, body=None):
     """Direct messages the owners of the GWG challenge that there isn't a form available
     for todays game and that their players are angry!!!
     """
 
     owners = get_gwg_contact(team)
     subject = "GWG form not created yet for \\r\\" + get_reddit_from_team_id(team)
-    body = "Hey you! Log in and make a form for todays GWG challenge, ya bum!"
-
+    if not body:
+        today = date.today()
+        body = "Hey you! Log in and make a form for todays GWG challenge, ya bum! It's {} and your team plays today. Get on it!!!".format(today)
+    
+    mail_success = True
     for owner in owners:
-        r.redditor(owner).message(subject, body)
-    return True
+        success = False
+        attempts = 0
+        while not success and attempts < 5:
+            try:
+                r.redditor(owner).message(subject, body)
+                success = True
+            except Exception as e:
+                print ("Exception trying to mail redditer %s. Waiting 60 and trying again." % owner)
+                print(traceback.print_stack())
+                attempts += 1
+                sleep(60)
+                continue
+        if not success:
+            mail_success = False
+    return mail_success
 
-def create_new_gwg_post(team=-1):
+def attempt_new_gwg_post(team=-1):
     """Submits, creates and posts the GWG challenge post."""
 
     gwg_form = gdrive.get_gameday_form(_get_game_number(team))
@@ -142,12 +160,19 @@ def create_new_gwg_post(team=-1):
     # message my owner and cry that we don't have a form to post
     if not gwg_form:
         alert_gwg_owners(team)
-        return False
+        return True
 
     url = gwg_form['embedLink']
     title = generate_post_title()
     contents = generate_post_contents(url)
-    r.subreddit(get_reddit_from_team_id(team)).submit(title, selftext=contents)
+    reddit_name = get_reddit_from_team_id(team)
+    try:
+        r.subreddit(reddit_name).submit(title, selftext=contents)
+        print ("Successfully posted new thread to %s!" % reddit_name)
+    except Exception as e:
+        print ("failed to pist new thread to subreddit with error %s" % e )
+        print(traceback.print_stack())
+        return False
     return True
 
 def already_posted_gwg(team):
@@ -165,6 +190,21 @@ def already_posted_gwg(team):
             return True
     return False
 
+def init_gdrive(team="-1"):
+    global gdrive
+    gdrive = DriveManager(team=team, silent=True)
+
+def gwg_poster_runner(team=-1):
+    """Checks if we need to post a new thread and if so, does it."""
+
+    if is_game_day(team) and not already_posted_gwg(get_reddit_from_team_id(team)):
+        init_gdrive(team=str(team))
+
+        if not attempt_new_gwg_post(team=team):
+            alert_gwg_owners(team, body="Unable to create new gwg post. Sorry, will try later.")
+    else:
+        print ("Doing nothing since it isn't game day.")
+
 def main():
     global gwg_args
 
@@ -179,21 +219,6 @@ def main():
     else:
         for team in participating_teams:
             gwg_poster_runner(team)
-
-def gwg_poster_runner(team=-1):
-    """Checks if we need to post a new thread and if so, does it."""
-
-    if is_game_day(team) and not already_posted_gwg(get_reddit_from_team_id(team)):
-        # defer gdrive polling until we know we need to poll
-        init_gdrive(team=str(team))
-
-        create_new_gwg_post(team=team)
-    else:
-        print ("Doing nothing since it isn't game day.")
-
-def init_gdrive(team="-1"):
-    global gdrive
-    gdrive = DriveManager(team=team, silent=True)
 
 if __name__ == '__main__':
    main()
