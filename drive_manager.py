@@ -10,6 +10,7 @@ from datetime import datetime as dt
 from time import sleep
 
 sys.path.insert(0, "K:\Documents\GitHub\gspread")
+sys.path.insert(0, "/home/kyle/gspread")
 import gspread
 
 from apiclient import discovery, errors
