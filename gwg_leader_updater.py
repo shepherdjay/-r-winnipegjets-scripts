@@ -155,6 +155,18 @@ def add_user_rankings(data):
 
     return new_leaderdata
 
+def _trim_username(username):
+    """takes a username and removes the leading /u/ or u/ from it. also lowercases the username and returns the result"""
+
+    # check for full string first
+    if "/u/" in username:
+        username = username.replace("/u/", "")
+    # then substring format
+    if "u/" in username:
+        username = username.replace("u/", "")
+
+    return username.lower().strip()
+
 def add_new_user_points(new_answers, leaders):
     """takes the new list of entier (new_answers) and adds their total to their 
     current score and/or adds them as a new user entry if they haven'r played before
@@ -164,7 +176,8 @@ def add_new_user_points(new_answers, leaders):
     new_leaderboard = {}
     if new_answers:
         for username, points in new_answers.items():
-            username = username.lower()
+
+            username = _trim_username(username)
             curr_points = leaders.pop(username, None)
             if curr_points:
                 new_leaderboard[username] = {'curr': int(points) + int(curr_points['curr']), 'last': int(points), 'played': int(curr_points['played']) + 1}
