@@ -178,6 +178,9 @@ def _trim_username(username):
     if "u/" in username:
         username = username.replace("u/", "")
 
+    #get rid of any whitespace inside username
+    username = username.replace(" ", "")
+
     return username.lower().strip()
 
 def add_new_user_points(new_answers, leaders):
