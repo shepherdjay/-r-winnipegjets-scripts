@@ -121,25 +121,31 @@ def create_game_history(game):
 def add_user_rankings(data):
     """Takes a users points and games played, compares it to the list of everyone else and returns
     their position relative to everyone else.
-
-    user: user we are trying to rank
-    everyone: everyones data
-    last_rank: last rank that was used. Are we a new rank or a tied rank?
     """
     current_rank = 1
     rankings = {}
     new_leaderdata = {}
+    starting_key = None
 
     # goes through the list and count the people that share the common position and games played.
     for username in sorted(data, key=lambda x:(data[x]['curr'],
                                                -data[x]['played']), 
                                  reverse=True):
+
         key = (data[username]['curr'], data[username]['played'])
+        # first time running, save the "best" score
+        if not starting_key:
+            starting_key = key
 
         if key not in rankings:
             rankings[key] = {'rank': current_rank, 'tie': False}
         else:
-            rankings[key] = {'rank': rankings[key]['rank'] + 1, 'tie': True}
+            # can't possibly be tied for first place
+            if key == starting_key:
+                rankings[key] = {'rank': rankings[key]['rank'], 'tie': True}
+            # tied for first place now
+            else:
+                rankings[key] = {'rank': rankings[key]['rank'] + 1, 'tie': True}
         current_rank += 1
 
     # apply rank to users and calculate their number of spots moved from last round
