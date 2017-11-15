@@ -1,3 +1,4 @@
+import sys
 import json
 import argparse
 import traceback
@@ -116,15 +117,19 @@ def generate_post_title(team=52):
 def generate_post_contents(gwg_link):
     """create the threads body. include the form link for participation."""
     leader_link = gdrive.get_drive_filetype('leaderboard')['alternateLink']
-    
+    analytics_link = gwg_args[:-35] + "viewanalytics"
+
     return  ("""[Link to current GWG challenge](%s)  \n\n
-Please comment here immediately ('done' or a general comment about the challenge) following their GWG form submission to add a layer of security on your entry. If you don't comment and someone else types your user name into the form for an entry your GWG entry will be void! Avoid this by commenting so we can cross reference the form submission time with the Reddit comment time. \n\n
+[Link to current GWG challenge results](%s)  \n\n
+
+Please comment here immediately ('done' or a general comment about the challenge) following your GWG form submission to add a layer of security to your entry. If you don't comment and someone else types your user name into the form for an entry your GWG entry will be void! Avoid this by commenting so we can cross reference the form submission time with the Reddit comment time. \n\n
 Every Correct answer you get gives you a point in the standings and at the end of the season the point leader will get a custom flair (Thanks KillEmAll!)!  \n\n
-If at the end of the season two people are tied the win will go to whoever had the least GWG entries in total! If they both had the same amount of games played we will tie break on   \n\n
+If at the end of the season two people are tied the win will go to whoever had the least GWG entries in total! If they both had the same amount of games played we will tie break on a fight to the death (or something else TBD)  \n\n
 [Current Standings](%s)  \n\n
+There is currently no easy way to go in and edit your replies if you make a mistake. If you do need to make an adjustment please make a comment in this thread and PM Jets_Bot a link to your comment directly. My Manager will need to manually go in and make the change in the leaderboard file. This change will not be reflected in the "view form analytics" page but will be fixed for leaderboard calculations.  \n\n
 As always, if you find any issues please PM me directly and we will sort out any/all issues.  \n\n
 NOTE: LATE ENTIRES WILL NOT BE ACCEPTED ANYTIME AFTER SCHEDULED GAME START UNLESS THERE IS AN OFFICAL GAME DELAY OF SOME SORT""" 
-% (gwg_link, leader_link))
+% (gwg_link, analytics_link, leader_link))
 
 def get_gwg_contact(team):
     """take a team and returns a list of people that should be contacted if there is an issues with 
