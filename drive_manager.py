@@ -55,16 +55,20 @@ class DriveManager():
 
         self.team_folder = team
         self._load_application_secrets()
+        self._refresh_gdrive_credentials()
+        self.update_drive_files()
+
+    def _refresh_gdrive_credentials(self):
+        """refreshes google drive credentials so we can talk to google drive again"""
 
         credentials = self._get_credentials()
         http = credentials.authorize(httplib2.Http())
 
+        credentials.refresh(http)
+
         # gspread 'cursor' to read workbooks and sheets
         self.gc = gspread.authorize(credentials)
-
-        # google drive api manager thing
         self.service = discovery.build('drive', 'v2', http=http)
-        self.update_drive_files()
 
     def _get_sheet_index(self, game):
         """take a string of a worksheet name and steal all the numbers from it.
@@ -357,7 +361,8 @@ class DriveManager():
     def update_drive_files(self):
         """This will take a list of files, and update the global variable that manages all these files."""
 
-        #TODO: update this such that we detect if we have two leaderboard files etc etc
+        self._refresh_gdrive_credentials()
+
         log.debug("Updating google drive files...")
 
         new_drive_files = self._empty_drive_files()
@@ -445,7 +450,8 @@ class DriveManager():
         Returns none if nothing matches the filetype passed.
         """
         result = self.drive_files.get(filetype)
-        log.error("Tried to retreive %s but it isn't a drive file type we've sorted by." % filetype)
+        if not result:
+            log.error("Tried to retreive %s but it isn't a drive file type we've sorted by." % filetype)
         return result
 
     def get_unwritten_leaderboard_games(self):
