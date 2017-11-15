@@ -1,11 +1,15 @@
 import sys
 import traceback
+import argparse
+import logging
 from time import sleep
 from datetime import datetime as dt
 
 from drive_manager import DriveManager
 
+log = None
 gdrive = None
+gwg_args = None
 
 def get_list_of_enteries(files):
     """This function accepts a list of files that we will go through
@@ -17,13 +21,13 @@ def get_list_of_enteries(files):
     new_data = []
     sorted_files = sorted(files, key=lambda x: x['createdDate'])
 
-    print ("Getting new GWG entries...")
+    log.debug("Getting new GWG entries...")
 
     #sort files by creation date so we read oldest files first(earlier games)
     for file in sorted_files:
         new_data.append(gdrive.get_file_entries(file))
 
-    print ("Done getting new GWG entires.")
+    log.debug("Done getting new GWG entires.")
     return new_data
 
 def format_results_data(data):
@@ -64,16 +68,16 @@ def create_game_history(game):
      the previous games results and the answer key.
     """
 
-    print ("Creating new history lines for previous game leaderboard.")
+    log.debug("Creating new history lines for previous game leaderboard.")
 
     leader_fileid = gdrive.get_drive_filetype('leaderboard')['id']
 
     if game['name'] in gdrive.get_all_books_sheets(leader_fileid):
-        print ("This game has already been written to the worksheet as a sheet")
-        print ("Assuming this is a failure recovery and continuing(?)")
+        log.error("This game has already been written to the worksheet as a sheet")
+        log.error("Assuming this is a failure recovery and continuing(?)")
         return True
     else:
-        print ("adding sheet %s to book" % game['name'])
+        log.debug("adding sheet %s to book" % game['name'])
         new_sheet = {}
         new_sheet['id'] = leader_fileid
         new_sheet['name'] = game['name']
@@ -110,7 +114,7 @@ def create_game_history(game):
         new_sheet['data'].append(["Late entries: " + str(num_late_entries)])
         new_sheet['data'].append(["Total valid entries: " + str(len(data_line) - num_late_entries)])
 
-        print ("Done with creating new worksheet %s data" % game['name'])
+        log.debug("Done with creating new worksheet %s data" % game['name'])
 
         return new_sheet
 
@@ -128,8 +132,8 @@ def add_user_rankings(data):
 
     # goes through the list and count the people that share the common position and games played.
     for username in sorted(data, key=lambda x:(data[x]['curr'],
-                                                 -data[x]['played']), 
-                                   reverse=True):
+                                               -data[x]['played']), 
+                                 reverse=True):
         key = (data[username]['curr'], data[username]['played'])
 
         if key not in rankings:
@@ -138,20 +142,23 @@ def add_user_rankings(data):
             rankings[key] = {'rank': rankings[key]['rank'] + 1, 'tie': True}
         current_rank += 1
 
-
+    # apply rank to users and calculate their number of spots moved from last round
     for username, scores in data.items():
         key = (scores['curr'], scores['played'])
+        delta = str(gdrive.convert_rank(scores['last_rank']) - gdrive.convert_rank(rankings[key]['rank']))
         if rankings[key]['tie']:
             new_leaderdata[username] = {'curr': scores['curr'], 
                                     'last': scores['last'], 
                                     'played': scores['played'],
-                                    'rank': "T" + str(rankings[key]['rank'])}
+                                    'rank': "T" + str(rankings[key]['rank']),
+                                    'delta': delta}
 
         else:
             new_leaderdata[username] = {'curr': scores['curr'], 
                                     'last': scores['last'], 
                                     'played': scores['played'],
-                                    'rank': rankings[key]['rank']}
+                                    'rank': rankings[key]['rank'],
+                                    'delta': delta}
 
     return new_leaderdata
 
@@ -180,17 +187,31 @@ def add_new_user_points(new_answers, leaders):
             username = _trim_username(username)
             curr_points = leaders.pop(username, None)
             if curr_points:
-                new_leaderboard[username] = {'curr': int(points) + int(curr_points['curr']), 'last': int(points), 'played': int(curr_points['played']) + 1}
+                new_leaderboard[username] = {'curr': int(points) + int(curr_points['curr']),
+                                             'last': int(points), 
+                                             'played': int(curr_points['played']) + 1,
+                                             'last_rank': curr_points['rank']}
             else:
-                new_leaderboard[username] = {'curr': int(points), 'last': 0, 'played': 1}
+                new_leaderboard[username] = {'curr': int(points), 
+                                            'last': 0, 
+                                            'played': 1, 
+                                            'last_rank': 0}
 
     # add remining people who didn't play in this most previous GWG challenge.
     if leaders:
         for username, points in leaders.items():
             if isinstance(points, dict):
-                new_leaderboard[username] = {'curr': int(points['curr']), 'last': 0, 'played': int(points['played'])}
+                new_leaderboard[username] = {'curr': int(points['curr']),
+                                            'last': 0, 
+                                            'played': int(points['played']),
+                                            'last_rank': points['rank']}
             else:
-                new_leaderboard[username] = {'curr': int(points), 'last': 0, 'played': int(curr_points['played'])}
+                log.error("I didnt expect this to fire but it did and here I am")
+                log.error("points : %s" % points)
+                new_leaderboard[username] = {'curr': int(points), 
+                                            'last': 0, 
+                                            'played': int(curr_points['played']),
+                                            'last_rank': 0}
 
     new_leaderboard = add_user_rankings(new_leaderboard)
 
@@ -247,7 +268,7 @@ def trim_already_managed_games():
 
     returns the trimmed list.
     """
-    print ("Trimming already managed games")
+    log.debug("Trimming already managed games")
     current_sheets = gdrive.get_all_books_sheets(gdrive.get_drive_filetype('leaderboard')['id'])
 
     pending_games = []
@@ -257,7 +278,7 @@ def trim_already_managed_games():
         if filename not in current_sheets:
             pending_games.append(file)
 
-    print ("Done trimming %s games for %s pending" % (len(files) - len(pending_games), len(pending_games)))
+    log.debug("Done trimming %s games for %s pending" % (len(files) - len(pending_games), len(pending_games)))
     return pending_games
 
 def manage_gwg_leaderboard():
@@ -267,15 +288,37 @@ def manage_gwg_leaderboard():
     new_games = trim_already_managed_games()
 
     if not new_games or len(new_games) == 0:
-        print ("No responses left to process. Ending.")
+        log.debug("No responses left to process. Ending.")
         return False
     else:
         latest_entrants = get_list_of_enteries(new_games)
 
         if not latest_entrants or len(latest_entrants) == 0:
-            print ("No new entrants needed to be ingested")
+            log.debug("No new entrants needed to be ingested")
         else:
             update_leaderboard_spreadsheet(latest_entrants)
+
+def setup():
+    """Handle arguments"""
+    global gwg_args
+    global log
+
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--test', '-t' ,action='store_true', help='Run in test mode with team -1')
+    group.add_argument('--prod', '-p', action='store_true', help='Run in production mode with full subscribed team list')
+    parser.add_argument('--debug', '-d', action='store_true', help='debug messages turned on', default=False)
+
+    gwg_args = parser.parse_args()
+
+    level = logging.INFO
+    if gwg_args.debug:
+        level = logging.DEBUG
+
+    logging.basicConfig(level=level, filename="gwg_leader.log", filemode="a+",
+                        format="%(asctime)-15s %(levelname)-8s %(message)s")
+    log = logging.getLogger("gwg_poster")
+    log.info("Stared gwg_poster")
 
 def main():
     """Shows basic usage of the Google Drive API.
@@ -284,18 +327,26 @@ def main():
     for up to 10 files.
     """
     global gdrive
+    setup()
 
-    gdrive = DriveManager()
+    if gwg_args.test:
+        gdrive = DriveManager(team="-1")
+    elif gwg_args.prod:
+        gdrive = DriveManager(team="52")
+    else:
+        log.critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
+        sys.exit()
 
     while True:
         if gdrive.new_response_data_available():
             gdrive.update_drive_files()
             manage_gwg_leaderboard()
+
         if gdrive.new_leaderboard_data():
             update_master_list()
         
         sleep_time = 60*60
-        print ("No new data available for updating with. Sleeping for %s" % sleep_time)
+        log.info("No new data available for updating with. Sleeping for %s" % sleep_time)
         sleep(sleep_time)
 
 if __name__ == '__main__':

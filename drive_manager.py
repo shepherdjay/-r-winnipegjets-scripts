@@ -55,7 +55,6 @@ class DriveManager():
 
         self.team_folder = team
         self._load_application_secrets()
-        self._refresh_gdrive_credentials()
         self.update_drive_files()
 
     def _refresh_gdrive_credentials(self):
@@ -493,6 +492,14 @@ class DriveManager():
 
         return self._get_sheet_two_columns(leaderid, sheet_index, 3, 9, remove_headers=4)
 
+    def convert_rank(self, rank):
+        """Takes a rank and returns the position they were in. This function is required in case the
+        users old rank contains a T in it. We want to remove it and return just the old value
+        """
+
+        rank = str(rank).replace("T", "")
+        return int(rank)
+
     def get_current_leaders(self):
         """Will retreive the current leaderboard in the leaderboard 
         google drive file and return the same pairing that "get_history_game_points"
@@ -512,9 +519,10 @@ class DriveManager():
             if line[0] == '':
                 continue
 
-            username = line[0]
-            played = line[3].split("/")[0]
-            stats = {'curr': int(line[1]), 'last': int(line[2]), 'played': played}
+            username = line[2]
+            played = line[5].split("/")[0]
+            rank = self.convert_rank(line[0])
+            stats = {'rank': rank, 'curr': int(line[3]), 'last': int(line[4]), 'played': played}
             formatted_data[username] = stats
         return formatted_data
 
@@ -546,18 +554,19 @@ class DriveManager():
                 log.debug("Writting row %s/%s" % (row -2, len(new_data)))
 
                 worksheet.update_cell(row, 1, new_data[username]['rank'])
-                worksheet.update_cell(row, 2, username)
-                worksheet.update_cell(row, 3, new_data[username]['curr'])
-                worksheet.update_cell(row, 4, new_data[username]['last'])
-                worksheet.update_cell(row, 5, str(new_data[username]['played']) + "/" + str(num_games))
+                worksheet.update_cell(row, 2, new_data[username]['delta'])
+                worksheet.update_cell(row, 3, username)
+                worksheet.update_cell(row, 4, new_data[username]['curr'])
+                worksheet.update_cell(row, 5, new_data[username]['last'])
+                worksheet.update_cell(row, 6, str(new_data[username]['played']) + "/" + str(num_games))
 
                 prev_winner = special_users.get(username)
 
                 #if its a winner, restate their winningness, otherwise clear the column
                 if prev_winner:
-                    worksheet.update_cell(row, 6, prev_winner)
+                    worksheet.update_cell(row, 7, prev_winner)
                 else:
-                    worksheet.update_cell(row, 6, "")
+                    worksheet.update_cell(row, 7, "")
                 row += 1
             log.debug("Done overwritting data")
             return True
