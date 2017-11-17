@@ -138,15 +138,6 @@ def get_gwg_contact(team):
 
     return gdrive.get_team_contacts(team)
 
-def get_reddit_from_team_id(team):
-    """returns a subreddit from a passed teamid"""
-
-    teams = {
-            "-1": "jets_bot", 
-            "52": "winnipegjets"}
-
-    return teams.get(str(team), None)
-
 def refresh_inbox_pms():
     global cached_inbox
 
@@ -183,7 +174,7 @@ def alert_gwg_owners(team, subject=None, body=None):
 
     owners = get_gwg_contact(team)
     if not subject:
-        subject = "GWG form not created yet for r/" + get_reddit_from_team_id(team)
+        subject = "GWG form not created yet for r/" + gdrive.getreddit_name(team)
 
     if not body:
         today = date.today()
@@ -215,7 +206,7 @@ def attempt_new_gwg_post(url, team=-1):
 
     title = generate_post_title()
     contents = generate_post_contents(url)
-    reddit_name = get_reddit_from_team_id(team)
+    reddit_name = gdrive.getreddit_name(team)
     try:
         result = r.subreddit(reddit_name).submit(title, selftext=contents)
         log.info("Successfully posted new thread to %s!" % reddit_name)
@@ -247,7 +238,7 @@ def already_posted_gwg(team):
             return True
     return False
 
-def gameday_form_available(team):
+def get_gameday_form_url(team):
     gwg_form = gdrive.get_gameday_form(_get_game_number(team))
 
     # message my owner and cry that we don't have a form to post
@@ -265,27 +256,27 @@ def init_gdrive(team):
 def gwg_poster_runner(team=-1):
     """Checks if we need to post a new thread and if so, does it."""
 
+    team_reddit = gdrive.getreddit_name(team)
     game_day = is_game_day(team)
-    already_posted = already_posted_gwg(get_reddit_from_team_id(team))
+    already_posted = already_posted_gwg(team_reddit)
 
     if game_day and not already_posted:
         init_gdrive(team)
 
-        url = gameday_form_available(team)
-        team_name = get_reddit_from_team_id(team)
+        url = get_gameday_form_url(team)
 
         if url:
             result = attempt_new_gwg_post(url, team=team)
             if not result:
-                subject = ("Failed to post GWG to %s" % team_name)
+                subject = ("Failed to post GWG to %s" % team_reddit)
                 alert_gwg_owners(team, 
                                 subject=subject,
                                 body="Unable to create new gwg post. Sorry, we will try later.")
             else:
-                subject = ("Success posting todays GWG to %s!" % team_name)
+                subject = ("Success posting todays GWG to %s!" % team_reddit)
                 alert_gwg_owners(team, 
                                 subject=subject,
-                                body=("Hi! Just letting you know that todays GWG post has been successfully posted to /r/%s here %s. Good luck!" % (team_name, result.shortlink)))
+                                body=("Hi! Just letting you know that todays GWG post has been successfully posted to /r/%s here %s!" % (team_reddit, result.shortlink)))
         else:
             alert_gwg_owners(team)
     elif not game_day:

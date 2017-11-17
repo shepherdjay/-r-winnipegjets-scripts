@@ -610,3 +610,8 @@ class DriveManager():
         """takes a number and returns the redditors that are associated to that folder."""
 
         return self.APPLICATION_SECRETS.get(self.team_folder).get('admin')
+
+    def get_reddit_name(self, team):
+        """takes a number and returns the redditors that are associated to that folder."""
+
+        return self.APPLICATION_SECRETS.get(self.team_folder).get('reddit')
