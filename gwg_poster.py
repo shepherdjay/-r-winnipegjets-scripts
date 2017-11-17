@@ -131,13 +131,6 @@ As always, if you find any issues please PM me directly and we will sort out any
 NOTE: LATE ENTIRES WILL NOT BE ACCEPTED ANYTIME AFTER SCHEDULED GAME START UNLESS THERE IS AN OFFICAL GAME DELAY OF SOME SORT""" 
 % (gwg_link, analytics_link, leader_link))
 
-def get_gwg_contact(team):
-    """take a team and returns a list of people that should be contacted if there is an issues with 
-    the gwg form not being ready on time.
-    """
-
-    return gdrive.get_team_contacts(team)
-
 def refresh_inbox_pms():
     global cached_inbox
 
@@ -172,7 +165,7 @@ def alert_gwg_owners(team, subject=None, body=None):
     for todays game and that their players are angry!!!
     """
 
-    owners = get_gwg_contact(team)
+    owners = gdrive.get_team_contacts(team)
     if not subject:
         subject = "GWG form not created yet for r/" + gdrive.getreddit_name(team)
 
