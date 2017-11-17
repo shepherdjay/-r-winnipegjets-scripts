@@ -215,16 +215,14 @@ def add_new_user_points(new_answers, leaders):
                                             'played': int(points['played']),
                                             'last_rank': points['rank']}
             else:
-                log.error("I didnt expect this to fire but it did and here I am")
-                log.error("points : %s" % points)
+                log.critical("I didn't expect this to fire but it did and here we are")
+                log.critical("points dump : '%s'" % points)
+                log.critical("user dump : '%s'" % user)
                 new_leaderboard[username] = {'curr': int(points), 
                                             'last': 0, 
                                             'played': int(curr_points['played']),
                                             'last_rank': 0}
-
-    new_leaderboard = add_user_rankings(new_leaderboard)
-
-    return new_leaderboard
+    return add_user_rankings(new_leaderboard)
 
 def update_master_list():
     """This function will check the anwser key for if we've already added a certain
@@ -356,6 +354,11 @@ def main():
         
         sleep_time = 60*60
         log.info("No new data available for updating with. Sleeping for %s" % sleep_time)
+
+        # quit if we are testing instead of running forever
+        if gwg_args.test:
+            return
+
         sleep(sleep_time)
 
 if __name__ == '__main__':

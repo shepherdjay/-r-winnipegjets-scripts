@@ -28,7 +28,7 @@ def _update_todays_game(team):
 
     if gwg_args.test:
         team = 52
-        today = "2017-11-14"
+        today = gwg_args.test
 
     attempts = 0
     while attempts < 2:
@@ -117,7 +117,7 @@ def generate_post_title(team=52):
 def generate_post_contents(gwg_link):
     """create the threads body. include the form link for participation."""
     leader_link = gdrive.get_drive_filetype('leaderboard')['alternateLink']
-    analytics_link = gwg_args[:-35] + "viewanalytics"
+    analytics_link = gwg_link[:-35] + "viewanalytics"
 
     return  ("""[Link to current GWG challenge](%s)  \n\n
 [Link to current GWG challenge results](%s)  \n\n
@@ -202,6 +202,7 @@ def alert_gwg_owners(team, subject=None, body=None):
                 success = True
             except Exception as e:
                 log.error("Exception trying to mail redditer %s. Waiting 60 and trying again." % owner)
+                log.error("error: %" % e)
                 log.error(traceback.print_stack())
                 attempts += 1
                 sleep(60)
@@ -249,10 +250,9 @@ def already_posted_gwg(team):
 def gameday_form_available(team):
     gwg_form = gdrive.get_gameday_form(_get_game_number(team))
 
-
     # message my owner and cry that we don't have a form to post
     if not gwg_form:
-        log.info("No gwg form found for game day for team %s! Alerting owners of GWG challenge and continuing." % team)
+        log.info("No gwg form found for game day team %s! Alerting owners of GWG challenge and continuing." % team)
         return False
 
     log.info("gwg form found for game day and team %s" % team)
@@ -307,7 +307,7 @@ def setup():
 
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--test', '-t' ,action='store_true', help='Run in test mode with team -1')
+    group.add_argument('-t', '--test', nargs=1, help='Run in test mode with team -1. Requires a date in from YYYY-MM-DD', default=False)
     group.add_argument('--prod', '-p', action='store_true', help='Run in production mode with full subscribed team list')
     parser.add_argument('--game83', action='store_true', help='forces a GWG challenge to not be present', default=False)
     parser.add_argument('--debug', '-d', action='store_true', help='debug messages turned on', default=False)
@@ -318,6 +318,10 @@ def setup():
     if gwg_args.debug:
         level = logging.DEBUG
 
+    if gwg_args.test:
+        gwg_args.test = gwg_args.test[0]
+
+
     logging.basicConfig(level=level, filename="gwg_poster.log", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
     log = logging.getLogger("gwg_poster")
@@ -326,3 +330,4 @@ def setup():
 if __name__ == '__main__':
     setup()
     main()
+    log.info("Done running poster")

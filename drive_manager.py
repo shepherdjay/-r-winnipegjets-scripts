@@ -600,9 +600,9 @@ class DriveManager():
 
     def get_gameday_form(self, form_num):
         """attempts to get a form named GWG formnum. Returns None if there isn't one."""
-
+        form_num = str(form_num)
         for form in self.drive_files['forms']:
-            if form['title'].lower() == "gwg " + str(form_num):
+            if form_num in form['title'].lower() and "(responses)" not in form['title'].lower():
                 return form
         return None
 
