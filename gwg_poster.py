@@ -167,7 +167,7 @@ def alert_gwg_owners(team, subject=None, body=None):
 
     owners = gdrive.get_team_contacts(team)
     if not subject:
-        subject = "GWG form not created yet for r/" + gdrive.getreddit_name(team)
+        subject = "GWG form not created yet for r/" + gdrive.get_reddit_name(team)
 
     if not body:
         today = date.today()
@@ -186,7 +186,7 @@ def alert_gwg_owners(team, subject=None, body=None):
                 success = True
             except Exception as e:
                 log.error("Exception trying to mail redditer %s. Waiting 60 and trying again." % owner)
-                log.error("error: %" % e)
+                log.error("error: %s" % e)
                 log.error(traceback.print_stack())
                 attempts += 1
                 sleep(60)
@@ -199,7 +199,7 @@ def attempt_new_gwg_post(url, team=-1):
 
     title = generate_post_title()
     contents = generate_post_contents(url)
-    reddit_name = gdrive.getreddit_name(team)
+    reddit_name = gdrive.get_reddit_name(team)
     try:
         result = r.subreddit(reddit_name).submit(title, selftext=contents)
         log.info("Successfully posted new thread to %s!" % reddit_name)
@@ -249,12 +249,12 @@ def init_gdrive(team):
 def gwg_poster_runner(team=-1):
     """Checks if we need to post a new thread and if so, does it."""
 
-    team_reddit = gdrive.getreddit_name(team)
+    init_gdrive(team)
+    team_reddit = gdrive.get_reddit_name(team)
     game_day = is_game_day(team)
     already_posted = already_posted_gwg(team_reddit)
 
     if game_day and not already_posted:
-        init_gdrive(team)
 
         url = get_gameday_form_url(team)
 
