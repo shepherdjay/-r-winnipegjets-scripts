@@ -121,7 +121,7 @@ class DriveManager():
         game_time = self._get_gameday_data(game_date, team)
 
         from_zone = tz.gettz('UTC')
-        to_zone = tz.gettz('America/New_York')
+        to_zone = tz.gettz('America/Winnipeg')
 
         # date formated like "2017-11-17T01:08:08Z"
         the_date = dateutil.parser.parse(game_time)
