@@ -1,14 +1,16 @@
 import sys
 import json
+import logging
 import argparse
 import traceback
-import logging
-from datetime import date
-from urllib.request import urlopen
-from datetime import datetime
 from time import sleep
+from datetime import date
+from datetime import datetime
+from dateutil import tz
+from urllib.request import urlopen
 
 from drive_manager import DriveManager
+from secret_manager import SecretManager
 from praw_login import r, DEFAULT_USERS, USER_NAME
 
 gwg_args = None
@@ -20,7 +22,6 @@ log = None
 
 def _update_todays_game(team):
     """Updates todays date with and game day info."""
-
     global game_history
 
     today = date.today()
@@ -34,7 +35,7 @@ def _update_todays_game(team):
     while attempts < 2:
         try:
             attempts +=1
-            data = urlopen("https://statsapi.web.nhl.com/api/v1/schedule?site=en_nhlCA&expand=schedule.teams,schedule.linescore,schedule.broadcasts.all&startDate=" + today + "&endDate=" + today + "&teamId=" + str(team))
+            data = urlopen("https://statsapi.web.nhl.com/api/v1/schedule?schedule.linescore&startDate=" + today + "&endDate=" + today + "&teamId=" + str(team))
             game_history = json.load(data)['dates']
             return
         except Exception as e:
@@ -92,7 +93,7 @@ def _get_date():
     """Returns todays date as a nice string"""
 
     today = date.today()
-    return str(today.day) + "-" + str(today.month) + "-" + str(today.year)
+    return str(today.year) + "-" + str(today.month) + "-" + str(today.day) 
 
 def generate_post_title(team=52):
     """Creates the title of the post
@@ -165,9 +166,9 @@ def alert_gwg_owners(team, subject=None, body=None):
     for todays game and that their players are angry!!!
     """
 
-    owners = gdrive.get_team_contacts(team)
+    owners = secrets.get_team_contacts(team)
     if not subject:
-        subject = "GWG form not created yet for r/" + gdrive.getreddit_name(team)
+        subject = "GWG form not created yet for r/" + secrets.get_reddit_name(team)
 
     if not body:
         today = date.today()
@@ -199,7 +200,7 @@ def attempt_new_gwg_post(url, team=-1):
 
     title = generate_post_title()
     contents = generate_post_contents(url)
-    reddit_name = gdrive.getreddit_name(team)
+    reddit_name = secrets.get_reddit_name(team)
     try:
         result = r.subreddit(reddit_name).submit(title, selftext=contents)
         log.info("Successfully posted new thread to %s!" % reddit_name)
@@ -244,17 +245,18 @@ def get_gameday_form_url(team):
 
 def init_gdrive(team):
     global gdrive
-    gdrive = DriveManager(team=str(team))
+    gdrive = DriveManager(secrets, team=str(team))
 
 def gwg_poster_runner(team=-1):
     """Checks if we need to post a new thread and if so, does it."""
 
-    team_reddit = gdrive.getreddit_name(team)
+    team_reddit = secrets.get_reddit_name(team)
     game_day = is_game_day(team)
     already_posted = already_posted_gwg(team_reddit)
 
     if game_day and not already_posted:
         init_gdrive(team)
+        prep_answer_key()
 
         url = get_gameday_form_url(team)
 
@@ -288,6 +290,7 @@ def main():
 def setup():
     global gwg_args
     global log
+    global secrets
 
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
@@ -310,6 +313,8 @@ def setup():
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
     log = logging.getLogger("gwg_poster")
     log.info("Stared gwg_poster")
+
+    secrets = SecretManager()
 
 if __name__ == '__main__':
     setup()

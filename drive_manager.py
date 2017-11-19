@@ -7,7 +7,11 @@ import httplib2
 import traceback
 import logging
 from datetime import datetime as dt
+from dateutil import tz
+import dateutil.parser
 from time import sleep
+from enum import Enum
+from urllib.request import urlopen
 
 sys.path.insert(0, "K:\Documents\GitHub\gspread")
 sys.path.insert(0, "/home/kyle/gspread")
@@ -22,9 +26,7 @@ from oauth2client.file import Storage
 # at ~/.credentials/drive-python-quickstart.json
 SCOPES = 'https://www.googleapis.com/auth/drive'
 CLIENT_SECRET_FILE = 'client_secret.json'
-APPLICATION_SECRET_FILE = 'application_secret.json'
 APPLICATION_NAME = 'GWG Leaderboard Updater'
-APPLICATION_SECRETS = None
 log = None
 
 try:
@@ -33,16 +35,21 @@ try:
 except ImportError:
     flags = None
 
+# Special google drive keys for certain columns or expected phrases
+class SheetKeys(Enum):
+    ANSWERKEY_SHEET = 1
+    DATE_COLUMN = 1
+    READY_COLUMN = 8
+    LEADERBOARD_ADDED_COLUMN = 9
+    LEADER_WRITTEN_SUCCESS = "yes"
+
 class DriveManager():
     gc = None
     service = None
     drive_files = None
-    APPLICATION_SECRETS = None
-    MASTER_READY_COLUMN = 8
-    MASTER_LEADERBOARD_ADDED_COLUMN = 9
-    MASTER_WRITE_STATE = "yes"
+    secrets = None
 
-    def __init__(self, team="52", debug=False):
+    def __init__(self, secrets, team="52", debug=False):
         """init google drive management objects"""
         global log
         level = logging.INFO
@@ -53,8 +60,8 @@ class DriveManager():
                             format="%(asctime)-15s %(levelname)-8s %(message)s")
         log = logging.getLogger("drive_manager")
 
+        self.secrets = secrets
         self.team_folder = team
-        self._load_application_secrets()
         self.update_drive_files()
 
     def _refresh_gdrive_credentials(self):
@@ -79,6 +86,50 @@ class DriveManager():
         """
         return int(''.join(filter(lambda x: x.isdigit(), game)))
 
+    def _get_gameday_data(self, game_day, team):
+        """returns the game day data"""
+        parts = game_day.split("/")
+        today = str(parts[0]) + "-" + str(parts[1]) + "-" + str(parts[2])
+
+        if str(team) == "-1":
+            team = "52" 
+
+        attempts = 0
+        while attempts < 5:
+            try:
+                attempts += 1
+                data = urlopen("https://statsapi.web.nhl.com/api/v1/schedule?expand=schedule.linescore&startDate=" + today + "&endDate=" + today + "&teamId=" + str(team))
+                data = json.load(data)
+                return data['dates'][0]['games'][0]['linescore']['periods'][0]['startTime']
+            except Exception as e:
+                log.error("exception occurred in is_game_day. Trying again shortly")
+                log.error('An error occurred: %s' % e)
+                log.error(traceback.print_exc())
+                sleep(15)
+
+    def _get_start_time(self, game_date, team):
+        """retrieves the puck drop time and returns the UTC python object
+
+        Note: Gdrive defaults the timestamp to your local configd for your general overall account. In my case, CST.
+        Because of this I am converting this UTC to CST so the dates can be managed directly instead of converted later on 
+        and making more code changes.
+
+        inspired by
+        https://stackoverflow.com/a/4771733
+        """
+
+        game_time = self._get_gameday_data(game_date, team)
+
+        from_zone = tz.gettz('UTC')
+        to_zone = tz.gettz('America/New_York')
+
+        # date formated like "2017-11-17T01:08:08Z"
+        the_date = dateutil.parser.parse(game_time)
+        utc = the_date.replace(tzinfo=from_zone)
+        cen = utc.astimezone(to_zone)
+
+        return cen.strftime('%Y/%m/%d %H:%M')
+
     def _get_sheet_two_columns(self, fileid, sheet_index, column1, column2, remove_headers=4):
         """this will take a look in the leaderboard file for sheet 'game' and return
         all the pairs of usernames and points acheived for that particual round.
@@ -87,7 +138,7 @@ class DriveManager():
 
         returns a dict that contains the results of the GWG challenge
         """
-
+        log.debug("Getting sheet two columsn for %s sheet %s col1 %s col2 %s remcol %s" % (fileid, sheet_index,column1, column2, remove_headers))
         column1_data = self.get_sheet_single_column(fileid, column1, sheet=sheet_index, remove_headers=remove_headers)
         column2_data = self.get_sheet_single_column(fileid, column2, sheet=sheet_index, remove_headers=remove_headers)
 
@@ -101,13 +152,7 @@ class DriveManager():
 
     def _empty_drive_files(self):
         """returns the clean struct for drive file management."""
-        return {'responses': [], 'answers': None, 'leaderboard': None, 'other': None, 'forms': []}
-
-    def _load_application_secrets(self):
-        """Loads the application secrets that aren't oauth related"""
-
-        with open(APPLICATION_SECRET_FILE) as json_data:
-            self.APPLICATION_SECRETS = json.load(json_data)
+        return {'responses': [], 'leaderboard': None, 'other': None, 'forms': []}
 
     def _extract_GWG_title(self, title):
         """takes a string, extracts the number in the name and returns GMX where X is 1< X <= 82"""
@@ -154,8 +199,9 @@ class DriveManager():
     def _get_game_list(self, fileid):
         """Gets two columns from the answer table and combines them into a single list. Returns that result"""
 
-        games = self._remove_values_from_list(self.get_sheet_single_column(fileid, 1))
-        readys = self.get_sheet_single_column(fileid, 8)
+        log.debug("Getting game list for file %s" % fileid)
+        games = self._remove_values_from_list(self.get_sheet_single_column(fileid, 1, sheet=SheetKeys.ANSWERKEY_SHEET.value))
+        readys = self.get_sheet_single_column(fileid, 8, sheet=SheetKeys.ANSWERKEY_SHEET.value)
 
         if not games or not readys:
             return None
@@ -165,11 +211,10 @@ class DriveManager():
         #return everything except the title
         return result[1:] 
 
-
     def get_all_drive_file_metadatas(self):
         """Logs into google drive and lists all the file resource that are in the main wpg jets directory."""
 
-        folder = self.APPLICATION_SECRETS[self.team_folder]['folder']
+        folder = self.secrets.get_teams_parent_folder(self.team_folder)
 
         try:
             param = {}
@@ -234,10 +279,10 @@ class DriveManager():
             log.debug("Reading column %s from sheet %s with id: %s" % (column, sheet, file_id))
             spreadsheet = self.gc.open_by_key(file_id)
             worksheet = spreadsheet.get_worksheet(sheet)
-            log.debug("Done reading column")
 
             # make everything lowercase
             data = worksheet.col_values(column)[remove_headers:]
+            log.debug("Done reading column")
             [row.lower() for row in data]
             return data
 
@@ -278,8 +323,8 @@ class DriveManager():
         results = {'title': [], 'result': []}
         log.debug("Extracting game %s question results..." % game_id)
         try:
-            spreadsheet = self.gc.open_by_key(self.drive_files['answers']['id'])
-            worksheet = spreadsheet.get_worksheet(0)
+            spreadsheet = self.gc.open_by_key(self.drive_files['leaderboard']['id'])
+            worksheet = spreadsheet.get_worksheet(1)
             lines = worksheet.get_all_values()
 
             # add title bar minus that last 2 elements (since those are the trigger for file running) but add points column.
@@ -378,12 +423,6 @@ class DriveManager():
                         new_drive_files['leaderboard'] = file
                     else:
                         log.debug("Second leaderboard found but we're ignoring it.")
-                elif 'answer' in filename:
-                    if not new_drive_files['answers']:
-                        new_drive_files['answers'] = file
-                        log.debug("Found answer key!")
-                    else:
-                        log.debug("Second answerkey found but we're ignoring it.")
                 elif 'response' in filename:
                     log.debug("Found a response!")
                     new_drive_files['responses'].append(file)
@@ -431,7 +470,7 @@ class DriveManager():
         returns true if there is a game to manage
         """
 
-        game_list = self._get_game_list(self.drive_files['answers']['id'])
+        game_list = self._get_game_list(self.drive_files['leaderboard']['id'])
         completed_sheets = self.get_all_books_sheets(self.drive_files['leaderboard']['id'])
 
         if not game_list or not completed_sheets:
@@ -459,7 +498,7 @@ class DriveManager():
         """
 
         unwritten_games = []
-        data = self.get_all_sheet_lines(self.drive_files['answers']['id'], headers=False)
+        data = self.get_all_sheet_lines(self.drive_files['leaderboard']['id'], headers=False, sheet=SheetKeys.ANSWERKEY_SHEET.value)
 
         if not data:
             return []
@@ -469,7 +508,7 @@ class DriveManager():
 
         #ranging so we can save the cell ID to overwrite on completion.
         for i in range(len(data)):
-            if (data[i][self.MASTER_READY_COLUMN].lower() != self.MASTER_WRITE_STATE and 
+            if (data[i][SheetKeys.READY_COLUMN.value].lower() != SheetKeys.LEADER_WRITTEN_SUCCESS.value and 
                 data[i][0] != "" and 
                 data[i][7].lower() == "yes"):
                 unwritten_games.append({'game': data[i], 'row': i + 2})
@@ -488,7 +527,8 @@ class DriveManager():
         leaderid = self.drive_files['leaderboard']['id']
 
         # the below only works assuming the games are added/created in order to the leaderboard spreadsheet.
-        sheet_index = self._get_sheet_index(game[0])
+        # note that the ansey key is now in spot 1, so we need to +1 to this position.
+        sheet_index = self._get_sheet_index(game[0]) + 1
 
         return self._get_sheet_two_columns(leaderid, sheet_index, 3, 9, remove_headers=4)
 
@@ -582,18 +622,20 @@ class DriveManager():
         that we dont try to re add this to our leaderboard total again later.
         """
 
+        leader_sheet_id = self.drive_files['leaderboard']['id']
+
         try:
-            spreadsheet = self.gc.open_by_key(self.drive_files['answers']['id'])
-            worksheet = spreadsheet.get_worksheet(0)
+            spreadsheet = self.gc.open_by_key(leader_sheet_id)
+            worksheet = spreadsheet.get_worksheet(SheetKeys.ANSWERKEY_SHEET.value)
 
             for row in rows:
                 log.debug("Overwritting answer key results column for game %s" % (int(row) - 1))
-                worksheet.update_cell(row, self.MASTER_LEADERBOARD_ADDED_COLUMN, self.MASTER_WRITE_STATE)
+                worksheet.update_cell(row, SheetKeys.LEADERBOARD_ADDED_COLUMN.value, SheetKeys.LEADER_WRITTEN_SUCCESS.value)
             log.debug("Done overwritting data")
             return True
 
         except Exception as error:
-            log.error('attemped to open with key: %s on sheet %s' % (self.drive_files['answers']['id'], 0))
+            log.error('attemped to open with key: %s on sheet %s' % (leader_sheet_id, SheetKeys.ANSWERKEY_SHEET.value))
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             sys.exit(-1)
@@ -606,12 +648,36 @@ class DriveManager():
                 return form
         return None
 
-    def get_team_contacts(self, team):
-        """takes a number and returns the redditors that are associated to that folder."""
+    def update_game_start_time(self, game_id):
+        """Takes a GMXX, finds the line and updates the start time to the time of puck drop for validation of game entries."""
 
-        return self.APPLICATION_SECRETS.get(self.team_folder).get('admin')
+        log.debug("Updating game time for game %s" % game_id)
+        sheet_key = self.drive_files['leaderboard']['id']
 
-    def get_reddit_name(self, team):
-        """takes a number and returns the redditors that are associated to that folder."""
+        try:
+            spreadsheet = self.gc.open_by_key(sheet_key)
+            worksheet = spreadsheet.get_worksheet(1)
+            lines = worksheet.get_all_values()
 
-        return self.APPLICATION_SECRETS.get(self.team_folder).get('reddit')
+            # find matching game line
+            for x in range(len(lines)):
+                line = lines[x]
+                if line[0] == game_id:
+
+                    # 2018/01/01
+                    if len(line[1]) != 10:
+                        return True
+
+                    #add line minus last column since that is the trigger for file being run.
+                    raw_date = line[1]
+                    actual_starttime = self._get_start_time(raw_date, self.team_folder)
+                    worksheet.update_cell(x + 1, 2, actual_starttime)
+                    return True
+            log.debug("Failure finding game time to update.")
+            return False
+
+        except Exception as error:
+            log.error('attemped to overwrite new game time on sheet %s game %s' % (sheet_key, game_id))
+            log.error('Error occurred: %s' % error)
+            log.error(traceback.print_exc())
+            return False
