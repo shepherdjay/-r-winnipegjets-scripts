@@ -107,7 +107,7 @@ def create_game_history(game):
             new_data_line = ["", "", data[1], data[2], "", data[3], "", data[4], player_points]
 
             # check if user got their entry in on time. if not, avoid it.
-            entry_time = dt.strptime(data[0], "%Y/%m/%d %H:%M")
+            entry_time = dt.strptime(data[0], "%m/%d/%Y %H:%M:%S")
             if (entry_time <= game_time):
                 new_sheet['data'].append(new_data_line)
             else:
