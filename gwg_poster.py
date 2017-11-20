@@ -95,6 +95,18 @@ def _get_date():
     today = date.today()
     return str(today.year) + "-" + str(today.month) + "-" + str(today.day) 
 
+def _check_title_override(game):
+    """checks the answer key for a thread title if the user wants to overwrite the default one.
+
+    Returns None if there isn't a thread title provided.
+    """
+    file_id = gdrive.get_drive_filetype('leaderboard')['id']
+    titles = gdrive.get_sheet_single_column(file_id, 10, sheet=1)
+
+    if titles[game] != "":
+        return titles[game]
+    return None
+
 def generate_post_title(team=52):
     """Creates the title of the post
 
@@ -103,17 +115,24 @@ def generate_post_title(team=52):
     Result is something like
     Jets @ Canucks 10/12/17 GWG Challenge #4
     """
+    game_number = _get_game_number(team)
+
+    title = _check_title_override(team, game_number)
+
+    if title:
+        if "gwg challenge #" not in title.lower():
+            return title + " GWG Challenge #" + str(game_number)
+        return title
 
     home = _get_team_name()
     away = _get_team_name(home=False)
-    game_number = _get_game_number(team)
     game_date = _get_date()
 
-    result = away + " @ " + home + " " + game_date + " GWG Challenge #" + str(game_number)
+    title = away + " @ " + home + " " + game_date + " GWG Challenge #" + str(game_number)
 
     if gwg_args.test:
-        return result + "(Testing Post)"
-    return result
+        return title + "(Testing Post)"
+    return title
 
 def generate_post_contents(gwg_link):
     """create the threads body. include the form link for participation."""
@@ -308,7 +327,6 @@ def setup():
 
     if gwg_args.test:
         gwg_args.test = gwg_args.test[0]
-
 
     logging.basicConfig(level=level, filename="gwg_poster.log", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")

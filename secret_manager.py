@@ -12,12 +12,12 @@ class SecretManager():
 
     def get_team_contacts(self, team):
         """takes a number and returns the redditors that are associated to that folder."""
-        return self.secrets.get(team).get('admin')
+        return self.secrets.get(str(team)).get('admin')
 
     def get_reddit_name(self, team):
         """takes a number and returns the redditors that are associated to that folder."""
-        return self.secrets.get(team).get('reddit')
+        return self.secrets.get(str(team)).get('reddit')
 
     def get_teams_parent_folder(self, team):
 
-        return self.secrets.get(team).get('folder')
+        return self.secrets.get(str(team)).get('folder')
