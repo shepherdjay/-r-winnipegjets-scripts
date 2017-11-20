@@ -49,7 +49,7 @@ class DriveManager():
     drive_files = None
     secrets = None
 
-    def __init__(self, secrets, team="52", debug=False):
+    def __init__(self, secrets, team="52", debug=False, update=True):
         """init google drive management objects"""
         global log
         level = logging.INFO
@@ -62,9 +62,10 @@ class DriveManager():
 
         self.secrets = secrets
         self.team_folder = team
-        self.update_drive_files()
+        if update:
+            self.update_drive_files()
 
-    def _refresh_gdrive_credentials(self):
+    def refresh_gdrive_credentials(self):
         """refreshes google drive credentials so we can talk to google drive again"""
 
         credentials = self._get_credentials()
@@ -405,7 +406,7 @@ class DriveManager():
     def update_drive_files(self):
         """This will take a list of files, and update the global variable that manages all these files."""
 
-        self._refresh_gdrive_credentials()
+        self.refresh_gdrive_credentials()
 
         log.debug("Updating google drive files...")
 

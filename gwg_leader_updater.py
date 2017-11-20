@@ -343,28 +343,29 @@ def main():
     setup()
 
     if gwg_args.test:
-        gdrive = DriveManager(secrets, team="-1")
+        gdrive = DriveManager(secrets, team="-1", update=False)
     elif gwg_args.prod:
-        gdrive = DriveManager(secrets, team="52")
+        gdrive = DriveManager(secrets, team="52", update=False)
     else:
         log.critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
         sys.exit()
 
     while True:
+        gdrive.update_drive_files()
+
         if gdrive.new_response_data_available():
             gdrive.update_drive_files()
             manage_gwg_leaderboard()
 
         if gdrive.new_leaderboard_data():
             update_master_list()
-        
-        sleep_time = 60*60
-        log.info("No new data available for updating with. Sleeping for %s" % sleep_time)
 
         # quit if we are testing instead of running forever
         if gwg_args.test:
             return
 
+        sleep_time = 60*60
+        log.info("No new data available for updating with. Sleeping for %s" % sleep_time)
         sleep(sleep_time)
 
 if __name__ == '__main__':
