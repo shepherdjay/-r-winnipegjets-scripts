@@ -6,10 +6,12 @@ from time import sleep
 from datetime import datetime as dt
 
 from drive_manager import DriveManager
+from secret_manager import SecretManager
 
 log = None
 gdrive = None
 gwg_args = None
+secrets = None
 
 def get_list_of_enteries(files):
     """This function accepts a list of files that we will go through
@@ -92,7 +94,7 @@ def create_game_history(game):
 
         # magic number positioning
         gwg_answers = get_gwg_answers(game_result_data['result'])
-        game_time = dt.strptime(game_result_data['result'][1], "%m/%d/%Y %H:%M")
+        game_time = dt.strptime(game_result_data['result'][1], "%Y/%m/%d %H:%M")
 
         new_sheet['data'].append("")
 
@@ -255,6 +257,7 @@ def update_leaderboard_spreadsheet(new_games):
     a new worksheet for the current game, and return success signal
     """
     for game in new_games:
+        gdrive.update_game_start_time(game['name'])
         gdrive.create_new_sheet(create_game_history(game))
 
 def convert_response_filename(name):
@@ -309,6 +312,7 @@ def setup():
     """Handle arguments"""
     global gwg_args
     global log
+    global secrets
 
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
@@ -327,6 +331,8 @@ def setup():
     log = logging.getLogger("gwg_poster")
     log.info("Stared gwg_poster")
 
+    secrets = SecretManager()
+
 def main():
     """Shows basic usage of the Google Drive API.
 
@@ -337,9 +343,9 @@ def main():
     setup()
 
     if gwg_args.test:
-        gdrive = DriveManager(team="-1")
+        gdrive = DriveManager(secrets, team="-1")
     elif gwg_args.prod:
-        gdrive = DriveManager(team="52")
+        gdrive = DriveManager(secrets, team="52")
     else:
         log.critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
         sys.exit()
