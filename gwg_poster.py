@@ -58,7 +58,7 @@ def _get_team_name(home=True):
     if not home:
         team_type = "away"
 
-    return game_history[0]['games'][0]['teams'][team_type]['team']['teamName']
+    return game_history[0]['games'][0]['teams'][team_type]['team']['name']
 
 def _get_game_number(team):
     """Returns what the next game number it is for team team."""
@@ -103,8 +103,8 @@ def _check_title_override(game):
     file_id = gdrive.get_drive_filetype('leaderboard')['id']
     titles = gdrive.get_sheet_single_column(file_id, 10, sheet=1)
 
-    if titles[game] != "":
-        return titles[game]
+    if titles[int(game)] != "":
+        return titles[int(game)]
     return None
 
 def generate_post_title(team=52):
@@ -117,7 +117,7 @@ def generate_post_title(team=52):
     """
     game_number = _get_game_number(team)
 
-    title = _check_title_override(team, game_number)
+    title = _check_title_override(game_number)
 
     if title:
         if "gwg challenge #" not in title.lower():
@@ -276,7 +276,6 @@ def gwg_poster_runner(team=-1):
 
     if game_day and not already_posted:
         init_gdrive(team)
-        prep_answer_key()
 
         url = get_gameday_form_url(team)
 
