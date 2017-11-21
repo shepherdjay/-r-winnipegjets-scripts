@@ -548,7 +548,6 @@ class DriveManager():
 
         returns a list of usernames and their scores
         """
-
         leaderid = self.drive_files['leaderboard']['id']
 
 
@@ -582,7 +581,7 @@ class DriveManager():
             spreadsheet = self.gc.open_by_key(self.drive_files['leaderboard']['id'])
             worksheet = spreadsheet.get_worksheet(0)
 
-            row = len(new_data) + 3
+            row = len(new_data) + 2
             num_games = len(spreadsheet.worksheets()) - 2
             log.debug("Overwritting leaderboard main page")
 

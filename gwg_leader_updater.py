@@ -7,6 +7,7 @@ from datetime import datetime as dt
 
 from drive_manager import DriveManager
 from secret_manager import SecretManager
+from praw_login import r
 
 log = None
 gdrive = None
@@ -291,6 +292,29 @@ def trim_already_managed_games():
     log.debug("Done trimming %s games for %s pending" % (len(files) - len(pending_games), len(pending_games)))
     return pending_games
 
+def _get_leaderboard_update_body():
+    leader_link = gdrive.get_drive_filetype('leaderboard')['alternateLink']
+    return ("""GWG has been updated! Check it out [here](%s)
+This is an automated message, please PM me if there are any issues.""" % leader_link)
+
+def _valid_date_in_title(post_time):
+    """checks if this thread was posted on game day for PGT"""
+
+    today = dt.now()
+    post = dt.fromtimestamp(post_time)
+
+    return today.year == post.year and today.month == post.month and today.day == post.day
+
+def notify_reddit(team):
+    """Look for a PGT or a GDT or a ODT and post a comment in there saying the leaderboard is updated."""
+
+    for submission in r.subreddit(secrets.get_reddit_name(team)).new(limit=10):
+        if "pgt" in submission.title.lower():
+            if _valid_date_in_title(submission.created_utc):
+                comment = submission.reply(_get_leaderboard_update_body())
+                comment.disable_inbox_replies()
+                break
+
 def manage_gwg_leaderboard():
     """This function will take a list from the files on the google app, and will
     iterate through the responses that we haven't added into our leaderboards yet.
@@ -341,11 +365,14 @@ def main():
     """
     global gdrive
     setup()
+    team = None
 
     if gwg_args.test:
-        gdrive = DriveManager(secrets, team="-1", update=False)
+        team = "-1"
+        gdrive = DriveManager(secrets, team=team, update=False)
     elif gwg_args.prod:
-        gdrive = DriveManager(secrets, team="52", update=False)
+        team = "52"
+        gdrive = DriveManager(secrets, team=team, update=False)
     else:
         log.critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
         sys.exit()
@@ -359,6 +386,7 @@ def main():
 
         if gdrive.new_leaderboard_data():
             update_master_list()
+            notify_reddit(team)
 
         # quit if we are testing instead of running forever
         if gwg_args.test:
