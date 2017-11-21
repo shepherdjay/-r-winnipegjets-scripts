@@ -593,8 +593,7 @@ class DriveManager():
             for username in sorted(new_data, 
                                    key=lambda x:(new_data[x]['curr'],
                                                  -new_data[x]['played'],
-                                                 new_data[x]['last']), 
-                                   reverse=True):
+                                                 new_data[x]['last'])):
                 log.debug("Writting row %s/%s" % (row -2, len(new_data)))
 
                 worksheet.update_cell(row, 1, new_data[username]['rank'])
