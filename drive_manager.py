@@ -585,7 +585,7 @@ class DriveManager():
             worksheet = spreadsheet.get_worksheet(0)
 
             row = 3
-            num_games = len(spreadsheet.worksheets()) - 1
+            num_games = len(spreadsheet.worksheets()) - 2
             log.debug("Overwritting leaderboard main page")
             for username in sorted(new_data, 
                                    key=lambda x:(new_data[x]['curr'],

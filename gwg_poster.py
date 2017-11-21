@@ -148,7 +148,7 @@ If at the end of the season two people are tied the win will go to whoever had t
 [Current Standings](%s)  \n\n
 There is currently no easy way to go in and edit your replies if you make a mistake. If you do need to make an adjustment please make a comment in this thread and PM Jets_Bot a link to your comment directly. My Manager will need to manually go in and make the change in the leaderboard file. This change will not be reflected in the "view form analytics" page but will be fixed for leaderboard calculations.  \n\n
 As always, if you find any issues please PM me directly and we will sort out any/all issues.  \n\n
-NOTE: LATE ENTIRES WILL NOT BE ACCEPTED ANYTIME AFTER SCHEDULED GAME START UNLESS THERE IS AN OFFICAL GAME DELAY OF SOME SORT""" 
+NOTE: LATE ENTIRES WILL NOT BE ACCEPTED! DEADLINE WILL BE OFFICAL NHL PUCK DROP TIME FROM THE SCORESHEET""" 
 % (gwg_link, analytics_link, leader_link))
 
 def refresh_inbox_pms():
@@ -223,6 +223,7 @@ def attempt_new_gwg_post(url, team=-1):
 
     try:
         result = r.subreddit(reddit_name).submit(title, selftext=contents)
+        result.disable_inbox_replies()
         log.info("Successfully posted new thread to %s!" % reddit_name)
         return result
     except Exception as e:
