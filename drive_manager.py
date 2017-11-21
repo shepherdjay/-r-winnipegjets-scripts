@@ -573,9 +573,7 @@ class DriveManager():
 
         Returns success or not.
         """
-        special_users = {"sternsternbutfair": "Winner 16-17",
-                        "troyunrau": "Winner 15-16",
-                        "zombstrawberry": "Winner 14-15"}
+        special_users = self.secrets.get_previous_winners(self.team_folder)
 
         #TODO: currently if the sheet for leaderboards is filled, this will fail.
         #      write software to check if we have reached the end of the document and if so,
@@ -584,9 +582,14 @@ class DriveManager():
             spreadsheet = self.gc.open_by_key(self.drive_files['leaderboard']['id'])
             worksheet = spreadsheet.get_worksheet(0)
 
-            row = 3
+            row = len(new_data) + 3
             num_games = len(spreadsheet.worksheets()) - 2
             log.debug("Overwritting leaderboard main page")
+
+            # update first row to tell users were updating.
+            for x in range(5):
+                worksheet.update_cell(3, 3 + x, "UPDATING")
+
             for username in sorted(new_data, 
                                    key=lambda x:(new_data[x]['curr'],
                                                  -new_data[x]['played'],
@@ -608,7 +611,7 @@ class DriveManager():
                     worksheet.update_cell(row, 7, prev_winner)
                 else:
                     worksheet.update_cell(row, 7, "")
-                row += 1
+                row -= 1
             log.debug("Done overwritting data")
             return True
 
