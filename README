@@ -37,5 +37,7 @@ Args for gwg bot
 
 `--test YYYY-MM-DD` used to test the GWG poster for day YYYY-MM-DD. You'll need to have a file in the testing directory that is named GWG X where X is the game number that the day corresponds to. We calulate what game number we are posting for by calculating our record on game day and + 1. (There may be a bug in the code using date in the past since it may contain the current record instead of the record at that point of time)
 
+--prod will fail right now with your applications_secret.json because there isn't a mapping for team 52 in it. This is because the gwg_poster uses the var `participating_teams` as the teams to look for in `application_secret.json` which we need to refactor.
+
 
 General Design flow to follow:
