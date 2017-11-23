@@ -11,7 +11,7 @@ from urllib.request import urlopen
 
 from drive_manager import DriveManager
 from secret_manager import SecretManager
-from praw_login import r, DEFAULT_USERS, USER_NAME
+from praw_login import r, USER_NAME
 
 gwg_args = None
 gdrive = None
@@ -66,19 +66,18 @@ def _get_game_number(team):
     result = None
     team = str(team)
     if team == "-1":
-        team = "52"
+        team = "52" 
 
     game = game_history[0]['games'][0]['teams']
-    if str(game['home']['team']['id']) == team:
+
+    if str(game['home']['team']['id']) == str(team):
         game = game['home']['leagueRecord']
-        win = game['wins']
-        loss = game['losses']
-        otl = game['ot']
     else:
-        game = game['home']['leagueRecord']
-        win = game['wins']
-        loss = game['losses']
-        otl = game['ot']
+        game = game['away']['leagueRecord']
+
+    win = game['wins']
+    loss = game['losses']
+    otl = game['ot']
 
     if gwg_args.game83:
         result = "83"
@@ -140,7 +139,7 @@ def generate_post_contents(gwg_link):
     analytics_link = gwg_link[:-35] + "viewanalytics"
 
     return  ("""[Link to current GWG challenge](%s)  \n\n
-[Link to current GWG challenge results](%s)  \n\n
+[Link to current GWG Entries](%s)  \n\n
 
 Please comment here immediately ('done' or a general comment about the challenge) following your GWG form submission to add a layer of security to your entry. If you don't comment and someone else types your user name into the form for an entry your GWG entry will be void! Avoid this by commenting so we can cross reference the form submission time with the Reddit comment time. \n\n
 Every Correct answer you get gives you a point in the standings and at the end of the season the point leader will get a custom flair (Thanks KillEmAll!)!  \n\n
