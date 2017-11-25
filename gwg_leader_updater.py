@@ -272,24 +272,23 @@ def convert_response_filename(name):
     parts = name.split()
     return "GM" + parts[1]
 
-def trim_already_managed_games():
-    """this will go through the responses we have and compare them to the 
-    sheets already created in the main leadeboard spreadsheet. If it already exists, 
-    remove it from the list.
-
-    returns the trimmed list.
+def get_pending_game_data(game_names):
+    """Goes through the pending game names and find their matching file for consumption.
+    return a list of files that match the list of pending game_names we are passed
     """
-    log.debug("Trimming already managed games")
-    current_sheets = gdrive.get_all_books_sheets(gdrive.get_drive_filetype('leaderboard')['id'])
+
+    log.debug("collecting files from pending game names")
 
     pending_games = []
     files = gdrive.get_drive_filetype('responses')
     for file in files:
         filename = convert_response_filename(file['title'])
-        if filename not in current_sheets:
-            pending_games.append(file)
+        for game in game_names:
+            if game == filename:
+                pending_games.append(file)
+                break
 
-    log.debug("Done trimming %s games for %s pending" % (len(files) - len(pending_games), len(pending_games)))
+    log.debug("Done collecting pending game files for games %s" % game_names)
     return pending_games
 
 def _get_leaderboard_update_body():
@@ -315,22 +314,16 @@ def notify_reddit(team):
                 comment.disable_inbox_replies()
                 break
 
-def manage_gwg_leaderboard():
+def manage_gwg_leaderboard(pending_games):
     """This function will take a list from the files on the google app, and will
     iterate through the responses that we haven't added into our leaderboards yet.
     """
-    new_games = trim_already_managed_games()
+    latest_entrants = get_list_of_enteries(get_pending_game_data(pending_games))
 
-    if not new_games or len(new_games) == 0:
-        log.debug("No responses left to process. Ending.")
-        return False
+    if not latest_entrants or len(latest_entrants) == 0:
+        log.debug("No new entrants needed to be ingested")
     else:
-        latest_entrants = get_list_of_enteries(new_games)
-
-        if not latest_entrants or len(latest_entrants) == 0:
-            log.debug("No new entrants needed to be ingested")
-        else:
-            update_leaderboard_spreadsheet(latest_entrants)
+        update_leaderboard_spreadsheet(latest_entrants)
 
 def setup():
     """Handle arguments"""
@@ -380,9 +373,10 @@ def main():
     while True:
         gdrive.update_drive_files()
 
-        if gdrive.new_response_data_available():
-            gdrive.update_drive_files()
-            manage_gwg_leaderboard()
+        pending_games = gdrive.new_response_data_available()
+
+        if pending_games != []:
+            manage_gwg_leaderboard(pending_games)
 
         if gdrive.new_leaderboard_data():
             update_master_list()

@@ -133,7 +133,7 @@ class DriveManager():
 
     def _get_sheet_two_columns(self, fileid, sheet_index, column1, column2, remove_headers=4):
         """this will take a look in the leaderboard file for sheet 'game' and return
-        all the pairs of usernames and points acheived for that particual round.
+        all the pairs of usernames and points achieved for that particular round.
 
         game: the GWG tab that we want to read from the general leaderboard
 
@@ -243,7 +243,7 @@ class DriveManager():
                 log.error('An error occurred: %s' % error)
                 log.error(traceback.print_exc())
 
-        log.debug("Collected all file meta datas.")
+        log.debug("Collected all file meta data's.")
         return results
 
     def get_all_sheet_lines(self, file_id, headers=True, sheet=0):
@@ -266,7 +266,7 @@ class DriveManager():
             return results
 
         except Exception as error:
-            log.error('attemped to open with key: %s' % file_id)
+            log.error('attempted to open with key: %s' % file_id)
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             sys.exit(-1)
@@ -288,7 +288,7 @@ class DriveManager():
             return data
 
         except Exception as error:
-            log.error('attemped to open with key: %s on sheet %s' % (file_id, sheet))
+            log.error('attempted to open with key: %s on sheet %s' % (file_id, sheet))
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             sys.exit(-1)
@@ -300,7 +300,7 @@ class DriveManager():
         this parameter passed will only have 1 file in it, but this may not be the case.
         """
 
-        log.debug("Getting file enteries for file %s" % file_data['id'])
+        log.debug("Getting file entries for file %s" % file_data['id'])
         try:
             spreadsheet = self.gc.open_by_key(file_data['id'])
             worksheet = spreadsheet.get_worksheet(0)
@@ -376,7 +376,7 @@ class DriveManager():
             return True
 
         except Exception as error:
-            log.error('attemped to write new sheet in binder: %s' % leader_fileid)
+            log.error('attempted to write new sheet in binder: %s' % leader_fileid)
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             workbook.del_worksheet(new_worksheet)
@@ -398,7 +398,7 @@ class DriveManager():
             return results
 
         except Exception as error:
-            log.error('Attemped to read all sheets in file: %s' % bookid)
+            log.error('Attempted to read all sheets in file: %s' % bookid)
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             return None
@@ -464,15 +464,17 @@ class DriveManager():
 
     def new_response_data_available(self):
         """This function will check the leaderboard for games that say "yes" for 
-        leaderboard_ready column and compare this with the whorksheets on the leadeboard page.
+        leaderboard_ready column and compare this with the worksheets on the leaderboard page.
 
         If the sheet isn't there, we will run our software.
 
-        returns true if there is a game to manage
+        returns a list of games that have not had an answer sheet created for them yet,
+        and are ready to be scored
         """
 
         game_list = self._get_game_list(self.drive_files['leaderboard']['id'])
         completed_sheets = self.get_all_books_sheets(self.drive_files['leaderboard']['id'])
+        pending_games = []
 
         if not game_list or not completed_sheets:
             return False
@@ -480,8 +482,8 @@ class DriveManager():
         else:
             for game in game_list:
                 if game[0] not in completed_sheets and game[1].lower() == "yes":
-                    return True
-            return False
+                    pending_games.append(game[0])
+        return pending_games
 
     def get_drive_filetype(self, filetype):
         """attempts to return the data that we've saved history about in google drive.
@@ -490,11 +492,11 @@ class DriveManager():
         """
         result = self.drive_files.get(filetype)
         if not result:
-            log.error("Tried to retreive %s but it isn't a drive file type we've sorted by." % filetype)
+            log.error("Tried to retrieve %s but it isn't a drive file type we've sorted by." % filetype)
         return result
 
     def get_unwritten_leaderboard_games(self):
-        """This fucntion will read the data in the answer key and return game names that
+        """This function will read the data in the answer key and return game names that
         haven't been written to the global leaderboard.
         """
 
@@ -518,7 +520,7 @@ class DriveManager():
 
     def get_history_game_points(self, game):
         """this will take a look in the leaderboard file for sheet 'game' and return
-        all the pairs of usernames and points acheived for that particual round.
+        all the pairs of usernames and points achieved for that particular round.
 
         game: the GWG tab that we want to read from the general leaderboard
 
@@ -528,7 +530,7 @@ class DriveManager():
         leaderid = self.drive_files['leaderboard']['id']
 
         # the below only works assuming the games are added/created in order to the leaderboard spreadsheet.
-        # note that the ansey key is now in spot 1, so we need to +1 to this position.
+        # note that the answer key is now in spot 1, so we need to +1 to this position.
         sheet_index = self._get_sheet_index(game[0]) + 1
 
         return self._get_sheet_two_columns(leaderid, sheet_index, 3, 9, remove_headers=4)
@@ -542,7 +544,7 @@ class DriveManager():
         return int(rank)
 
     def get_current_leaders(self):
-        """Will retreive the current leaderboard in the leaderboard 
+        """Will retrieve the current leaderboard in the leaderboard 
         google drive file and return the same pairing that "get_history_game_points"
         does.
 
@@ -583,7 +585,7 @@ class DriveManager():
 
             row = len(new_data) + 2
             num_games = len(spreadsheet.worksheets()) - 2
-            log.debug("Overwritting leaderboard main page")
+            log.debug("Overwriting leaderboard main page")
 
             # update first row to tell users were updating.
             for x in range(5):
@@ -593,7 +595,7 @@ class DriveManager():
                                    key=lambda x:(new_data[x]['curr'],
                                                  -new_data[x]['played'],
                                                  new_data[x]['last'])):
-                log.debug("Writting row %s/%s" % (row -2, len(new_data)))
+                log.debug("Writing row %s/%s" % (row -2, len(new_data)))
 
                 worksheet.update_cell(row, 1, new_data[username]['rank'])
                 worksheet.update_cell(row, 2, new_data[username]['delta'])
@@ -610,18 +612,18 @@ class DriveManager():
                 else:
                     worksheet.update_cell(row, 7, "")
                 row -= 1
-            log.debug("Done overwritting data")
+            log.debug("Done overwriting data")
             return True
 
         except Exception as error:
-            log.error('attemped to open file with key: %s' % (self.drive_files['leaderboard']['id']))
+            log.error('attempted to open file with key: %s' % (self.drive_files['leaderboard']['id']))
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             sys.exit(-1)
 
     def update_answerkey_results(self, rows):
-        """takes the game we just added to the eladerboard and updates the answer key so
-        that we dont try to re add this to our leaderboard total again later.
+        """takes the game we just added to the leaderboard and updates the answer key so
+        that we don't try to re add this to our leaderboard total again later.
         """
 
         leader_sheet_id = self.drive_files['leaderboard']['id']
@@ -631,13 +633,13 @@ class DriveManager():
             worksheet = spreadsheet.get_worksheet(SheetKeys.ANSWERKEY_SHEET.value)
 
             for row in rows:
-                log.debug("Overwritting answer key results column for game %s" % (int(row) - 1))
+                log.debug("Overwriting answer key results column for game %s" % (int(row) - 1))
                 worksheet.update_cell(row, SheetKeys.LEADERBOARD_ADDED_COLUMN.value, SheetKeys.LEADER_WRITTEN_SUCCESS.value)
-            log.debug("Done overwritting data")
+            log.debug("Done overwriting data")
             return True
 
         except Exception as error:
-            log.error('attemped to open with key: %s on sheet %s' % (leader_sheet_id, SheetKeys.ANSWERKEY_SHEET.value))
+            log.error('attempted to open with key: %s on sheet %s' % (leader_sheet_id, SheetKeys.ANSWERKEY_SHEET.value))
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             sys.exit(-1)
@@ -679,7 +681,7 @@ class DriveManager():
             return False
 
         except Exception as error:
-            log.error('attemped to overwrite new game time on sheet %s game %s' % (sheet_key, game_id))
+            log.error('attempted to overwrite new game time on sheet %s game %s' % (sheet_key, game_id))
             log.error('Error occurred: %s' % error)
             log.error(traceback.print_exc())
             return False
