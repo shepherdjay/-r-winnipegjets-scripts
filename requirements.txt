@@ -1,0 +1,4 @@
+praw==5.2.0
+httplib2==0.10.3
+google_api_python_client==1.6.4
+python_dateutil==2.6.1
