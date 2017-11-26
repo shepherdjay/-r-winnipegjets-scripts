@@ -307,11 +307,15 @@ def _valid_date_in_title(post_time):
 def notify_reddit(team):
     """Look for a PGT or a GDT or a ODT and post a comment in there saying the leaderboard is updated."""
 
+    log.debug("attempting to notify reddit of updated leaderboard")
     for submission in r.subreddit(secrets.get_reddit_name(team)).new(limit=10):
         if "pgt" in submission.title.lower():
+            log.debug("     Found a thread")
             if _valid_date_in_title(submission.created_utc):
+                log.debug("        Appropriate thread creation date. Posting...")
                 comment = submission.reply(_get_leaderboard_update_body())
                 comment.disable_inbox_replies()
+                log.debug("done notifying reddit of updates")
                 break
 
 def manage_gwg_leaderboard(pending_games):
