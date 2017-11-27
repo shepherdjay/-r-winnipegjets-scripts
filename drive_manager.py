@@ -13,8 +13,8 @@ from time import sleep
 from enum import Enum
 from urllib.request import urlopen
 
-sys.path.insert(0, "K:\Documents\GitHub\gspread")
-sys.path.insert(0, "/home/kyle/gspread")
+sys.path.insert(0, "./gspread")
+#sys.path.insert(0, "/home/kyle/gspread")
 import gspread
 
 from apiclient import discovery, errors
