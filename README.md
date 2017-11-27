@@ -15,6 +15,8 @@ r = praw.Reddit(client_id=<YOUR-CLIENT-ID>,
                 user_agent=<YOUR-USER-AGENT>,
                 username=<REDDIT-USERNAME>,
                 password=<REDDIT-PASSWORD>)
+
+USER_NAME = <REDDIT-USERNAME>
 ```
 
 In the -r-winnipeg-jets-scripts directory run the following to pull in the pip packages:
@@ -25,7 +27,7 @@ pip install -r requirements.txt
 
 You'll need to set up google drive API credentials which you can do by following the instructions [here](https://developers.google.com/drive/v3/web/quickstart/python). Be sure to start from the beginning as you need to enable API calls to/from your account.
 
-Note that you will need to change the `SCOPES` variable in the quick start to  `https://www.googleapis.com/auth/drive` to allow read and write access to the files we manage for GWG.
+Note that you will need to change the `SCOPES` variable in the quick start to  `https://www.googleapis.com/auth/drive` to allow read and write access to the files we manage for GWG. You will also need to set your redirect URI.
 
 Once those are all set up you'll need to configure your own copy of the application_secret.json file. You can use application_secret.json.temp as a template. It should work out of the box. Here are additional notes about the keys and values:
 

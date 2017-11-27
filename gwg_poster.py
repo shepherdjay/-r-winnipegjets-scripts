@@ -4,8 +4,8 @@ import logging
 import argparse
 import traceback
 from time import sleep
-from datetime import date
-from datetime import datetime
+from datetime import date, datetime, timedelta
+#from datetime import datetime
 from dateutil import tz
 from urllib.request import urlopen
 
@@ -153,7 +153,7 @@ NOTE: LATE ENTIRES WILL NOT BE ACCEPTED! DEADLINE WILL BE OFFICAL NHL PUCK DROP 
 def refresh_inbox_pms():
     global cached_inbox
 
-    if not cached_inbox or datetime.now() - cached_inbox['time'] < datetime.timedelta(hours=1, minutes=30):
+    if not cached_inbox or datetime.now() - cached_inbox['time'] < timedelta(hours=1, minutes=30):
         log.info("Refreshing mailbox")
         cached_inbox = {'mail': r.inbox.sent(limit=64), 'time': datetime.now()}
 
