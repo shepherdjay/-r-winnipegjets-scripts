@@ -3,6 +3,8 @@ Install Instructions
 
 Enable API access to your reddit account by following the documentation [here](http://praw.readthedocs.io/en/latest/getting_started/authentication.html#oauth).
 
+Those instructions will ask you to register an Application with Reddit. You want to do `script application` and the callback URI is [http://localhost:8080](http://localhost:8080).
+
 After that is complete, fill in the details below in a new file named `praw_login.py` with your creds and username/password below
 
 ```python
@@ -15,9 +17,11 @@ r = praw.Reddit(client_id=<YOUR-CLIENT-ID>,
                 password=<REDDIT-PASSWORD>)
 ```
 
-Also clone https://github.com/KyleBrownCS/gspread and make sure you import it properly in drive_manager.py (see import lines near top of file) (this needs to be refactored as currently I've manually added my personal download locations). The default package doesn't work as there was a couple functions that were broken that I wanted to use.
+In the -r-winnipeg-jets-scripts directory run the following to pull in the pip packages:
 
-In the -r-winnipeg-jets-scripts directory run `pip install -r requirements.txt` and it should pull in the pip packages.
+~~~~ bash
+pip install -r requirements.txt
+~~~~
 
 You'll need to set up google drive API credentials which you can do by following the instructions [here](https://developers.google.com/drive/v3/web/quickstart/python). Be sure to start from the beginning as you need to enable API calls to/from your account.
 

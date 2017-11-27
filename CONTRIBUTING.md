@@ -1,4 +1,5 @@
-# Contribution Instructions
+Contribution Instructions
+=
 
 In order to begin contributing to this repo, you must first fork the repo into your personal github.
 
