@@ -340,6 +340,7 @@ def setup():
     group.add_argument('--test', '-t' ,action='store_true', help='Run in test mode with team -1')
     group.add_argument('--prod', '-p', action='store_true', help='Run in production mode with full subscribed team list')
     parser.add_argument('--debug', '-d', action='store_true', help='debug messages turned on', default=False)
+    parser.add_argument('--single', '-s', action='store_true', help='runs only once', default=False)
 
     gwg_args = parser.parse_args()
 
@@ -389,6 +390,9 @@ def main():
         # quit if we are testing instead of running forever
         if gwg_args.test:
             return
+        if gwg_args.single:
+            log.info("Exiting early due to --single command on cli")
+            sys.exit()
 
         sleep_time = 60*60
         log.info("No new data available for updating with. Sleeping for %s" % sleep_time)
