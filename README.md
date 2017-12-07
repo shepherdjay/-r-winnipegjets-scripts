@@ -1,5 +1,11 @@
 Install Instructions
 =
+This repo uses Submodules to bring in a modified GSpread dependency. First thing you must do after cloning is run:
+
+~~~~bash
+git submodule init
+git submodule update
+~~~~
 
 Enable API access to your reddit account by following the documentation [here](http://praw.readthedocs.io/en/latest/getting_started/authentication.html#oauth).
 
