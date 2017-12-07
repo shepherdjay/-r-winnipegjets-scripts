@@ -345,7 +345,7 @@ class DriveManager():
             return results
 
         except Exception as error:
-            log.error('attemped to open with key: %s' % game_id)
+            log.error('attempted to open with key: %s' % game_id)
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             return results

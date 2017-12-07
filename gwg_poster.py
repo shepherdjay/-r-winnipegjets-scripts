@@ -147,7 +147,7 @@ If at the end of the season two people are tied the win will go to whoever had t
 [Current Standings](%s)  \n\n
 There is currently no easy way to go in and edit your replies if you make a mistake. If you do need to make an adjustment please make a comment in this thread and PM Jets_Bot a link to your comment directly. My Manager will need to manually go in and make the change in the leaderboard file. This change will not be reflected in the "view form analytics" page but will be fixed for leaderboard calculations.  \n\n
 As always, if you find any issues please PM me directly and we will sort out any/all issues.  \n\n
-NOTE: LATE ENTIRES WILL NOT BE ACCEPTED! DEADLINE WILL BE OFFICAL NHL PUCK DROP TIME FROM THE SCORESHEET""" 
+NOTE: LATE ENTIRES WILL NOT BE ACCEPTED! DEADLINE WILL BE OFFICIAL NHL PUCK DROP TIME FROM THE SCORESHEET""" 
 % (gwg_link, analytics_link, leader_link))
 
 def refresh_inbox_pms():
@@ -201,7 +201,7 @@ def alert_gwg_owners(team, subject=None, body=None):
         attempts = 0
         while not success and attempts < 5:
             try:
-                r.redditor(owner).message(subject, body)
+                r.redditer(owner).message(subject, body)
                 success = True
             except Exception as e:
                 log.error("Exception trying to mail redditer %s. Waiting 60 and trying again." % owner)
@@ -242,7 +242,7 @@ def check_same_day(requested_date):
 def already_posted_gwg(team):
     """Checks if we've already posted the GWG thread in the team team sub"""
 
-    for submission in r.redditor(USER_NAME).submissions.new():
+    for submission in r.redditer(USER_NAME).submissions.new():
         posted_today = check_same_day(submission.created_utc)
         
         if (submission.subreddit_name_prefixed.lower() == "r/" + team.lower() and 
