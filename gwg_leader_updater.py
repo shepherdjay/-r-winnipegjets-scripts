@@ -14,7 +14,7 @@ gdrive = None
 gwg_args = None
 secrets = None
 
-def get_list_of_enteries(files):
+def get_list_of_entries(files):
     """This function accepts a list of files that we will go through
     (not blacklisted) pull the people entries for the GWG and return a list of lists
     that contains all the entries for each response sheet we have. In a perfect world
@@ -187,8 +187,8 @@ def _trim_username(username):
     return username.lower().strip()
 
 def add_new_user_points(new_answers, leaders):
-    """takes the new list of entier (new_answers) and adds their total to their 
-    current score and/or adds them as a new user entry if they haven'r played before
+    """takes the new list of entries (new_answers) and adds their total to their 
+    current score and/or adds them as a new user entry if they haven't played before
 
     returns a list with all the new updates.
     """
@@ -209,7 +209,7 @@ def add_new_user_points(new_answers, leaders):
                                             'played': 1, 
                                             'last_rank': 0}
 
-    # add remining people who didn't play in this most previous GWG challenge.
+    # add remaining people who didn't play in this most previous GWG challenge.
     if leaders:
         for username, points in leaders.items():
             if isinstance(points, dict):
@@ -228,7 +228,7 @@ def add_new_user_points(new_answers, leaders):
     return add_user_rankings(new_leaderboard)
 
 def update_master_list():
-    """This function will check the anwser key for if we've already added a certain
+    """This function will check the answer key for if we've already added a certain
     table to the master list.
 
     If not, adds it and updates the master list, then updates the column to say we've added to master/
@@ -322,7 +322,7 @@ def manage_gwg_leaderboard(pending_games):
     """This function will take a list from the files on the google app, and will
     iterate through the responses that we haven't added into our leaderboards yet.
     """
-    latest_entrants = get_list_of_enteries(get_pending_game_data(pending_games))
+    latest_entrants = get_list_of_entries(get_pending_game_data(pending_games))
 
     if not latest_entrants or len(latest_entrants) == 0:
         log.debug("No new entrants needed to be ingested")

@@ -13,8 +13,9 @@ from time import sleep
 from enum import Enum
 from urllib.request import urlopen
 
-sys.path.insert(0, "K:\Documents\GitHub\gspread")
-sys.path.insert(0, "/home/kyle/gspread")
+sys.path.insert(0, "./gspread")
+#TODO: make sure this works for both nix and win, otherwise put a runtime conditional
+#sys.path.insert(0, "/home/kyle/gspread")
 import gspread
 
 from apiclient import discovery, errors
@@ -344,7 +345,7 @@ class DriveManager():
             return results
 
         except Exception as error:
-            log.error('attemped to open with key: %s' % game_id)
+            log.error('attempted to open with key: %s' % game_id)
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             return results

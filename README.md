@@ -1,7 +1,16 @@
 Install Instructions
 =
 
+This repo uses Submodules to bring in a modified GSpread dependency. First thing you must do after cloning is run:
+
+~~~~bash
+git submodule init
+git submodule update
+~~~~
+
 Enable API access to your reddit account by following the documentation [here](http://praw.readthedocs.io/en/latest/getting_started/authentication.html#oauth).
+
+Those instructions will ask you to register an Application with Reddit. You want to do `script application` and the callback URI is [http://localhost:8080](http://localhost:8080).
 
 After that is complete, fill in the details below in a new file named `praw_login.py` with your creds and username/password below
 
@@ -13,15 +22,19 @@ r = praw.Reddit(client_id=<YOUR-CLIENT-ID>,
                 user_agent=<YOUR-USER-AGENT>,
                 username=<REDDIT-USERNAME>,
                 password=<REDDIT-PASSWORD>)
+
+USER_NAME = <REDDIT-USERNAME>
 ```
 
-Also clone https://github.com/KyleBrownCS/gspread and make sure you import it properly in drive_manager.py (see import lines near top of file) (this needs to be refactored as currently I've manually added my personal download locations). The default package doesn't work as there was a couple functions that were broken that I wanted to use.
+In the -r-winnipeg-jets-scripts directory run the following to pull in the pip packages:
 
-In the -r-winnipeg-jets-scripts directory run `pip install -r requirements.txt` and it should pull in the pip packages.
+~~~~ bash
+pip install -r requirements.txt
+~~~~
 
 You'll need to set up google drive API credentials which you can do by following the instructions [here](https://developers.google.com/drive/v3/web/quickstart/python). Be sure to start from the beginning as you need to enable API calls to/from your account.
 
-Note that you will need to change the `SCOPES` variable in the quick start to  `https://www.googleapis.com/auth/drive` to allow read and write access to the files we manage for GWG.
+Note that you will need to change the `SCOPES` variable in the quick start to  `https://www.googleapis.com/auth/drive` to allow read and write access to the files we manage for GWG. You will also need to set your redirect URI.
 
 Once those are all set up you'll need to configure your own copy of the application_secret.json file. You can use application_secret.json.temp as a template. It should work out of the box. Here are additional notes about the keys and values:
 
