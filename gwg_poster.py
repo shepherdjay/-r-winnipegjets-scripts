@@ -242,7 +242,7 @@ def check_same_day(requested_date):
 def already_posted_gwg(team):
     """Checks if we've already posted the GWG thread in the team team sub"""
 
-    for submission in r.redditer(USER_NAME).submissions.new():
+    for submission in r.redditor(USER_NAME).submissions.new():
         posted_today = check_same_day(submission.created_utc)
         
         if (submission.subreddit_name_prefixed.lower() == "r/" + team.lower() and 

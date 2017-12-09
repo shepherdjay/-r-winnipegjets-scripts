@@ -293,7 +293,8 @@ def get_pending_game_data(game_names):
 
 def _get_leaderboard_update_body():
     leader_link = gdrive.get_drive_filetype('leaderboard')['alternateLink']
-    return ("""GWG has been updated! Check it out [here](%s)
+    return ("""GWG has been updated! Check it out [here](%s)!  
+
 This is an automated message, please PM me if there are any issues.""" % leader_link)
 
 def _valid_date_in_title(post_time):
