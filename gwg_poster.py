@@ -201,10 +201,10 @@ def alert_gwg_owners(team, subject=None, body=None):
         attempts = 0
         while not success and attempts < 5:
             try:
-                r.redditer(owner).message(subject, body)
+                r.redditor(owner).message(subject, body)
                 success = True
             except Exception as e:
-                log.error("Exception trying to mail redditer %s. Waiting 60 and trying again." % owner)
+                log.error("Exception trying to mail redditor %s. Waiting 60 and trying again." % owner)
                 log.error("error: %s" % e)
                 log.error(traceback.print_stack())
                 attempts += 1
