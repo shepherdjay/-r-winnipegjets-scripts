@@ -1,13 +1,13 @@
-import sys
-import traceback
 import argparse
 import logging
-from time import sleep
+import sys
+import traceback
 from datetime import datetime as dt
+from time import sleep
 
 from drive_manager import DriveManager
-from secret_manager import SecretManager
 from praw_login import r
+from secret_manager import SecretManager
 
 class GWGLeaderUpdater:
 
