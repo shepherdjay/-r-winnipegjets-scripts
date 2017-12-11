@@ -16,8 +16,8 @@ class GWGLeaderUpdater:
     gwg_args = None
     secrets = None
 
-    #def __init__(self):
-
+    def __init__(self, gdrive):
+        self.gdrive = gdrive
 
     def get_list_of_entries(self, files):
         """This function accepts a list of files that we will go through
@@ -368,21 +368,22 @@ def main():
     Creates a Google Drive API service object and outputs the names and IDs
     for up to 10 files.
     """
-    global gdrive
+    gdrive = None
     gwg_args = parseArgs()
     secrets = SecretManager()
-    gwgUpdater = GWGLeaderUpdater()
+    
     team = None
 
     if gwg_args.test:
         team = "-1"
-        gdrive = DriveManager(secrets, team=team, update=False)
     elif gwg_args.prod:
         team = "52"
-        gdrive = DriveManager(secrets, team=team, update=False)
     else:
         log.critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
         sys.exit()
+
+    gdrive = DriveManager(secrets, team=team, update=False)
+    gwgUpdater = GWGLeaderUpdater(gdrive)
 
     while True:
         gdrive.update_drive_files()
