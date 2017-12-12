@@ -33,7 +33,7 @@ class GWGLeaderUpdater:
 
         #sort files by creation date so we read oldest files first(earlier games)
         for file in sorted_files:
-            new_data.append(gdrive.get_file_entries(file))
+            new_data.append(self.gdrive.get_file_entries(file))
 
         log.debug("Done getting new GWG entires.")
         return new_data
@@ -78,9 +78,9 @@ class GWGLeaderUpdater:
 
         log.debug("Creating new history lines for previous game leaderboard.")
 
-        leader_fileid = gdrive.get_drive_filetype('leaderboard')['id']
+        leader_fileid = self.gdrive.get_drive_filetype('leaderboard')['id']
 
-        if game['name'] in gdrive.get_all_books_sheets(leader_fileid):
+        if game['name'] in self.gdrive.get_all_books_sheets(leader_fileid):
             log.error("This game has already been written to the worksheet as a sheet")
             log.error("Assuming this is a failure recovery and continuing(?)")
             return True
@@ -93,7 +93,7 @@ class GWGLeaderUpdater:
             new_sheet['cols'] = 5 # timestamp, username, GWG, q2, q3
             new_sheet['data'] = []
 
-            game_result_data = gdrive.get_games_result(game['name'])
+            game_result_data = self.gdrive.get_games_result(game['name'])
 
             new_sheet['data'].append(self.format_results_data(game_result_data['title']))
             new_sheet['data'].append(self.format_results_data(game_result_data['result']))
@@ -159,7 +159,7 @@ class GWGLeaderUpdater:
         # apply rank to users and calculate their number of spots moved from last round
         for username, scores in data.items():
             key = (scores['curr'], scores['played'])
-            delta = str(gdrive.convert_rank(scores['last_rank']) - gdrive.convert_rank(rankings[key]['rank']))
+            delta = str(self.gdrive.convert_rank(scores['last_rank']) - self.gdrive.convert_rank(rankings[key]['rank']))
             if rankings[key]['tie']:
                 new_leaderdata[username] = {'curr': scores['curr'], 
                                         'last': scores['last'], 
@@ -242,19 +242,19 @@ class GWGLeaderUpdater:
         """
 
         written_games = []
-        current_leaders = gdrive.get_current_leaders()
-        unwritten_games = gdrive.get_unwritten_leaderboard_games()
+        current_leaders = self.gdrive.get_current_leaders()
+        unwritten_games = self.gdrive.get_unwritten_leaderboard_games()
 
         for game in unwritten_games:
-            newest_results = gdrive.get_history_game_points(game['game'])
+            newest_results = self.gdrive.get_history_game_points(game['game'])
 
             current_leaders = self.add_new_user_points(newest_results, current_leaders)
 
             # add the row in answer key that needs to be updated as "written"
             written_games.append(game['row'])
 
-        if gdrive.overwrite_leaderboard(current_leaders):
-            gdrive.update_answerkey_results(written_games)
+        if self.gdrive.overwrite_leaderboard(current_leaders):
+            self.gdrive.update_answerkey_results(written_games)
 
         return True
 
@@ -263,8 +263,8 @@ class GWGLeaderUpdater:
         a new worksheet for the current game, and return success signal
         """
         for game in new_games:
-            gdrive.update_game_start_time(game['name'])
-            gdrive.create_new_sheet(self.create_game_history(game))
+            self.gdrive.update_game_start_time(game['name'])
+            self.gdrive.create_new_sheet(self.create_game_history(game))
 
     def convert_response_filename(self, name):
         """convert a standardized game name string into a string our software expects.
@@ -285,7 +285,7 @@ class GWGLeaderUpdater:
         log.debug("collecting files from pending game names")
 
         pending_games = []
-        files = gdrive.get_drive_filetype('responses')
+        files = self.gdrive.get_drive_filetype('responses')
         for file in files:
             filename = self.convert_response_filename(file['title'])
             for game in game_names:
@@ -297,7 +297,7 @@ class GWGLeaderUpdater:
         return pending_games
 
     def _get_leaderboard_update_body(self, ):
-        leader_link = gdrive.get_drive_filetype('leaderboard')['alternateLink']
+        leader_link = self.gdrive.get_drive_filetype('leaderboard')['alternateLink']
         return ("""GWG has been updated! Check it out [here](%s)!  
 
     This is an automated message, please PM me if there are any issues.""" % leader_link)
@@ -335,7 +335,7 @@ class GWGLeaderUpdater:
         else:
             self.update_leaderboard_spreadsheet(latest_entrants)
 
-def parseArgs():
+def parse_args():
     """Handle arguments"""
     #global gwg_args
     global log
@@ -368,8 +368,7 @@ def main():
     Creates a Google Drive API service object and outputs the names and IDs
     for up to 10 files.
     """
-    gdrive = None
-    gwg_args = parseArgs()
+    gwg_args = parse_args()
     secrets = SecretManager()
     
     team = None
@@ -383,7 +382,7 @@ def main():
         sys.exit()
 
     gdrive = DriveManager(secrets, team=team, update=False)
-    gwgUpdater = GWGLeaderUpdater(gdrive)
+    gwg_updater = GWGLeaderUpdater(gdrive)
 
     while True:
         gdrive.update_drive_files()
@@ -391,11 +390,11 @@ def main():
         pending_games = gdrive.new_response_data_available()
 
         if pending_games != []:
-            gwgUpdater.manage_gwg_leaderboard(pending_games)
+            gwg_updater.manage_gwg_leaderboard(pending_games)
 
         if gdrive.new_leaderboard_data():
-            gwgUpdater.update_master_list()
-            gwgUpdater.notify_reddit(team)
+            gwg_updater.update_master_list()
+            gwg_updater.notify_reddit(team)
 
         # quit if we are testing instead of running forever
         if gwg_args.test:

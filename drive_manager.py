@@ -140,7 +140,7 @@ class DriveManager():
 
         returns a dict that contains the results of the GWG challenge
         """
-        log.debug("Getting sheet two columsn for %s sheet %s col1 %s col2 %s remcol %s" % (fileid, sheet_index,column1, column2, remove_headers))
+        log.debug("Getting sheet two columns for %s sheet %s col1 %s col2 %s remcol %s" % (fileid, sheet_index,column1, column2, remove_headers))
         column1_data = self.get_sheet_single_column(fileid, column1, sheet=sheet_index, remove_headers=remove_headers)
         column2_data = self.get_sheet_single_column(fileid, column2, sheet=sheet_index, remove_headers=remove_headers)
 
