@@ -16,8 +16,11 @@ class GWGLeaderUpdater:
     gwg_args = None
     secrets = None
 
-    def __init__(self, gdrive):
+    def __init__(self, gdrive, secrets, gwg_args):
         self.gdrive = gdrive
+        self.secrets = secrets
+        self.gwg_args = gwg_args
+        log = logging.getLogger("gwg_poster")
 
     def get_list_of_entries(self, files):
         """This function accepts a list of files that we will go through
@@ -337,9 +340,6 @@ class GWGLeaderUpdater:
 
 def parse_args():
     """Handle arguments"""
-    #global gwg_args
-    global log
-    #global secrets
 
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
@@ -350,17 +350,13 @@ def parse_args():
 
     gwg_args = parser.parse_args()
 
-    level = logging.INFO
-    if gwg_args.debug:
-        level = logging.DEBUG
+    return gwg_args
 
+def init_logger(level):
     logging.basicConfig(level=level, filename="gwg_leader.log", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
     log = logging.getLogger("gwg_poster")
-    log.info("Stared gwg_poster")
-
-    
-    return gwg_args
+    log.info("Started gwg_poster")
 
 def main():
     """Shows basic usage of the Google Drive API.
@@ -368,7 +364,12 @@ def main():
     Creates a Google Drive API service object and outputs the names and IDs
     for up to 10 files.
     """
+
     gwg_args = parse_args()
+
+    level = logging.DEBUG if gwg_args.debug else logging.INFO
+    init_logger(level)
+
     secrets = SecretManager()
     
     team = None
@@ -378,11 +379,11 @@ def main():
     elif gwg_args.prod:
         team = "52"
     else:
-        log.critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
+        logging.getLogger("gwg_poster").critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
         sys.exit()
 
     gdrive = DriveManager(secrets, team=team, update=False)
-    gwg_updater = GWGLeaderUpdater(gdrive)
+    gwg_updater = GWGLeaderUpdater(gdrive, secrets, gwg_args)
 
     while True:
         gdrive.update_drive_files()
@@ -398,14 +399,15 @@ def main():
 
         # quit if we are testing instead of running forever
         if gwg_args.test:
+            logging.getLogger("gwg_poster").info("Exiting a test run")
             return
 
         if gwg_args.single:
-            log.info("Exiting early due to --single command on cli")
+            logging.getLogger("gwg_poster").info("Exiting early due to --single command on cli")
             sys.exit()
 
         sleep_time = 60*60
-        log.info("No new data available for updating with. Sleeping for %s" % sleep_time)
+        logging.getLogger("gwg_poster").info("No new data available for updating with. Sleeping for %s" % sleep_time)
         sleep(sleep_time)
 
 if __name__ == '__main__':
