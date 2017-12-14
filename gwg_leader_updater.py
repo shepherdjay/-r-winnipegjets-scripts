@@ -359,12 +359,6 @@ def init_logger(level):
     log.info("Started gwg_poster")
 
 def main():
-    """Shows basic usage of the Google Drive API.
-
-    Creates a Google Drive API service object and outputs the names and IDs
-    for up to 10 files.
-    """
-
     gwg_args = parse_args()
 
     level = logging.DEBUG if gwg_args.debug else logging.INFO
