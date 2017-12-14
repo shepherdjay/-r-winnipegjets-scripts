@@ -14,8 +14,6 @@ from enum import Enum
 from urllib.request import urlopen
 
 sys.path.insert(0, "./gspread")
-#TODO: make sure this works for both nix and win, otherwise put a runtime conditional
-#sys.path.insert(0, "/home/kyle/gspread")
 import gspread
 
 from apiclient import discovery, errors
