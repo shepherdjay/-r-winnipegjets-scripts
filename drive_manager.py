@@ -528,13 +528,22 @@ class DriveManager():
         returns a dict that contains the results of the GWG challenge
         """
 
-        leaderid = self.drive_files['leaderboard']['id']
+        # get a list of all the sheets in the answer key workbook.
+        leader_sheet_id = self.drive_files['leaderboard']['id']
+        sheets = self.get_all_books_sheets(leader_sheet_id)
 
-        # the below only works assuming the games are added/created in order to the leaderboard spreadsheet.
-        # note that the answer key is now in spot 1, so we need to +1 to this position.
-        sheet_index = self._get_sheet_index(game[0]) + 1
+        sheet_index = None
+        #find the game we are looking for in the list.
+        for x in range(len(sheets)):
+            if game[0] == sheets[x]:
+                sheet_index = x
+                break
 
-        return self._get_sheet_two_columns(leaderid, sheet_index, 3, 9, remove_headers=4)
+        if sheet_index:
+            # the below only works assuming the games are added/created in order to the leaderboard spreadsheet.
+            # note that the answer key is now in spot 1, so we need to +1 to this position.
+            return self._get_sheet_two_columns(leader_sheet_id, sheet_index, 3, 9, remove_headers=4)
+        return None
 
     def convert_rank(self, rank):
         """Takes a rank and returns the position they were in. This function is required in case the
@@ -593,9 +602,9 @@ class DriveManager():
                 worksheet.update_cell(3, 3 + x, "UPDATING")
 
             for username in sorted(new_data, 
-                                   key=lambda x:(new_data[x]['curr'],
-                                                 -new_data[x]['played'],
-                                                 new_data[x]['last'])):
+                                   key=lambda x:(int(new_data[x]['curr']),
+                                                 -int(new_data[x]['played']),
+                                                 int(new_data[x]['last']))):
                 log.debug("Writing row %s/%s" % (row -2, len(new_data)))
 
                 worksheet.update_cell(row, 1, new_data[username]['rank'])

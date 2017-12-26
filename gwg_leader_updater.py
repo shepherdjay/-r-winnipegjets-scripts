@@ -243,10 +243,11 @@ def update_master_list():
     for game in unwritten_games:
         newest_results = gdrive.get_history_game_points(game['game'])
 
-        current_leaders = add_new_user_points(newest_results, current_leaders)
+        if newest_results:
+            current_leaders = add_new_user_points(newest_results, current_leaders)
 
-        # add the row in answer key that needs to be updated as "written"
-        written_games.append(game['row'])
+            # add the row in answer key that needs to be updated as "written"
+            written_games.append(game['row'])
 
     if gdrive.overwrite_leaderboard(current_leaders):
         gdrive.update_answerkey_results(written_games)
