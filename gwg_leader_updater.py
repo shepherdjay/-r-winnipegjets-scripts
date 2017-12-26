@@ -389,11 +389,9 @@ def main():
             update_master_list()
             notify_reddit(team)
 
-        # quit if we are testing instead of running forever
-        if gwg_args.test:
-            return
-        if gwg_args.single:
-            log.info("Exiting early due to --single command on cli")
+        # quit if we are testing instead of running forever or issues --single
+        if gwg_args.test or gwg_args.single:
+            log.info("Exiting early due to --single --test on cli")
             sys.exit()
 
         sleep_time = 60*60
