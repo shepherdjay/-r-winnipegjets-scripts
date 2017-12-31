@@ -8,6 +8,7 @@ from time import sleep
 from drive_manager import DriveManager
 from praw_login import r
 from secret_manager import SecretManager
+LOGGER_NAME = "gwg_poster"
 
 class GWGLeaderUpdater:
 
@@ -16,8 +17,11 @@ class GWGLeaderUpdater:
     gwg_args = None
     secrets = None
 
-    def __init__(self, secrets, gdrive):
+    def __init__(self, gdrive, secrets, gwg_args):
         self.gdrive = gdrive
+        self.secrets = secrets
+        self.gwg_args = gwg_args
+        self.log = logging.getLogger(LOGGER_NAME)
 
     def get_list_of_entries(self, files):
         """This function accepts a list of files that we will go through
@@ -29,13 +33,13 @@ class GWGLeaderUpdater:
         new_data = []
         sorted_files = sorted(files, key=lambda x: x['createdDate'])
 
-        log.debug("Getting new GWG entries...")
+        self.log.debug("Getting new GWG entries...")
 
         #sort files by creation date so we read oldest files first(earlier games)
         for file in sorted_files:
             new_data.append(self.gdrive.get_file_entries(file))
 
-        log.debug("Done getting new GWG entires.")
+        self.log.debug("Done getting new GWG entires.")
         return new_data
 
     def format_results_data(self, data):
@@ -94,16 +98,16 @@ class GWGLeaderUpdater:
         the previous games results and the answer key.
         """
 
-        log.debug("Creating new history lines for previous game leaderboard.")
+        self.log.debug("Creating new history lines for previous game leaderboard.")
 
         leader_fileid = self.gdrive.get_drive_filetype('leaderboard')['id']
 
         if game['name'] in self.gdrive.get_all_books_sheets(leader_fileid):
-            log.error("This game has already been written to the worksheet as a sheet")
-            log.error("Assuming this is a failure recovery and continuing(?)")
+            self.log.error("This game has already been written to the worksheet as a sheet")
+            self.log.error("Assuming this is a failure recovery and continuing(?)")
             return True
         else:
-            log.debug("adding sheet %s to book" % game['name'])
+            self.log.debug("adding sheet %s to book" % game['name'])
             new_sheet = {}
             new_sheet['id'] = leader_fileid
             new_sheet['name'] = game['name']
@@ -153,7 +157,7 @@ class GWGLeaderUpdater:
             new_sheet['stats'].append(["Total valid entries: " + str(len(data_line) - num_late_entries)])
             new_sheet['messages'] = late_user_data
 
-            log.debug("Done with creating new worksheet %s data" % game['name'])
+            self.log.debug("Done with creating new worksheet %s data" % game['name'])
 
             return new_sheet
 
@@ -254,9 +258,9 @@ class GWGLeaderUpdater:
                                                 'played': int(points['played']),
                                                 'last_rank': points['rank']}
                 else:
-                    log.critical("I didn't expect this to fire but it did and here we are")
-                    log.critical("points dump : '%s'" % points)
-                    log.critical("user dump : '%s'" % user)
+                    self.log.critical("I didn't expect this to fire but it did and here we are")
+                    self.log.critical("points dump : '%s'" % points)
+                    self.log.critical("user dump : '%s'" % user)
                     new_leaderboard[username] = {'curr': int(points), 
                                                 'last': 0, 
                                                 'played': int(curr_points['played']),
@@ -293,7 +297,7 @@ class GWGLeaderUpdater:
         """Takes a list of games and users that entered their GWG entry late.
         """
 
-        log.debug(f"Sending mail to late users: {late_users} for game {game}.")
+        self.log.debug(f"Sending mail to late users: {late_users} for game {game}.")
 
         subject = f"You had a late GWG Entry for {game}"
 
@@ -313,12 +317,12 @@ Go Jets Go!"""
                     r.redditor(user['name']).message(subject, body)
                     success = True
                 except Exception as e:
-                    log.error("Exception trying to mail redditor %s. Waiting 30 and trying again." % user['username'])
-                    log.error("error: %s" % e)
-                    log.error(traceback.print_stack())
+                    self.log.error("Exception trying to mail redditor %s. Waiting 30 and trying again." % user['username'])
+                    self.log.error("error: %s" % e)
+                    self.log.error(traceback.print_stack())
                     attempts += 1
                     sleep(30)
-        log.debug("Done sending late message mails.")
+        self.log.debug("Done sending late message mails.")
 
     def update_leaderboard_spreadsheet(self, new_games):
         """this function will read the leaderboard spreadsheet, update the latest worksheet, add
@@ -347,7 +351,7 @@ Go Jets Go!"""
         return a list of files that match the list of pending game_names we are passed
         """
 
-        log.debug("collecting files from pending game names %s" % game_names)
+        self.log.debug("collecting files from pending game names %s" % game_names)
 
         pending_games = []
         files = self.gdrive.get_drive_filetype('responses')
@@ -358,7 +362,7 @@ Go Jets Go!"""
                     pending_games.append(file)
                     break
 
-        log.debug("Done collecting pending game files for games %s" % game_names)
+        self.log.debug("Done collecting pending game files for games %s" % game_names)
         return pending_games
 
     def _get_leaderboard_update_body(self):
@@ -378,15 +382,15 @@ This is an automated message, please PM me if there are any issues.""" % leader_
     def notify_reddit(self, team):
         """Look for a PGT or a GDT or a ODT and post a comment in there saying the leaderboard is updated."""
 
-        log.debug("attempting to notify reddit of updated leaderboard")
+        self.log.debug("attempting to notify reddit of updated leaderboard")
         for submission in r.subreddit(self.secrets.get_reddit_name(team)).new(limit=10):
             if any(sub in submission.title.lower() for sub in ["pgt", "odt", "gdt", "game day", "post game", "off day"]):
-                log.debug("     Found a thread")
+                self.log.debug("     Found a thread")
                 if _valid_date_in_title(submission.created_utc):
-                    log.debug("        Appropriate thread creation date. Posting...")
+                    self.log.debug("        Appropriate thread creation date. Posting...")
                     comment = submission.reply(_get_leaderboard_update_body())
                     comment.disable_inbox_replies()
-                    log.debug("         done notifying reddit of updates")
+                    self.log.debug("         done notifying reddit of updates")
                     break
 
     def update_leaderboard_spreadsheet(self, new_games):
@@ -413,7 +417,7 @@ This is an automated message, please PM me if there are any issues.""" % leader_
         return a list of files that match the list of pending game_names we are passed
         """
 
-        log.debug("collecting files from pending game names")
+        self.log.debug("collecting files from pending game names")
 
         pending_games = []
         files = self.gdrive.get_drive_filetype('responses')
@@ -424,7 +428,7 @@ This is an automated message, please PM me if there are any issues.""" % leader_
                     pending_games.append(file)
                     break
 
-        log.debug("Done collecting pending game files for games %s" % game_names)
+        self.log.debug("Done collecting pending game files for games %s" % game_names)
         return pending_games
 
     def _get_leaderboard_update_body(self, ):
@@ -444,15 +448,15 @@ This is an automated message, please PM me if there are any issues.""" % leader_
     def notify_reddit(self, team):
         """Look for a PGT or a GDT or a ODT and post a comment in there saying the leaderboard is updated."""
 
-        log.debug("attempting to notify reddit of updated leaderboard")
+        self.log.debug("attempting to notify reddit of updated leaderboard")
         for submission in r.subreddit(self.secrets.get_reddit_name(team)).new(limit=10):
             if "pgt" in submission.title.lower():
-                log.debug("     Found a thread")
+                self.log.debug("     Found a thread")
                 if self._valid_date_in_title(submission.created_utc):
-                    log.debug("        Appropriate thread creation date. Posting...")
+                    self.log.debug("        Appropriate thread creation date. Posting...")
                     comment = submission.reply(self._get_leaderboard_update_body())
                     comment.disable_inbox_replies()
-                    log.debug("done notifying reddit of updates")
+                    self.log.debug("done notifying reddit of updates")
                     break
 
     def manage_gwg_leaderboard(self, pending_games):
@@ -462,15 +466,12 @@ This is an automated message, please PM me if there are any issues.""" % leader_
         latest_entrants = self.get_list_of_entries(self.get_pending_game_data(pending_games))
 
         if not latest_entrants or len(latest_entrants) == 0:
-            log.debug("No new entrants needed to be ingested")
+            self.log.debug("No new entrants needed to be ingested")
         else:
             self.update_leaderboard_spreadsheet(latest_entrants)
 
 def parse_args():
     """Handle arguments"""
-    #global gwg_args
-    global log
-    #global secrets
 
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
@@ -481,25 +482,20 @@ def parse_args():
 
     gwg_args = parser.parse_args()
 
-    level = logging.INFO
-    if gwg_args.debug:
-        level = logging.DEBUG
-
-    logging.basicConfig(level=level, filename="gwg_leader.log", filemode="a+",
-                        format="%(asctime)-15s %(levelname)-8s %(message)s")
-    log = logging.getLogger("gwg_poster")
-    log.info("Stared gwg_poster")
-
-    
     return gwg_args
 
-def main():
-    """Shows basic usage of the Google Drive API.
+def init_logger(level):
+    logging.basicConfig(level=level, filename="gwg_leader.log", filemode="a+",
+                        format="%(asctime)-15s %(levelname)-8s %(message)s")
+    log = logging.getLogger(LOGGER_NAME)
+    log.info("Started gwg_poster")
 
-    Creates a Google Drive API service object and outputs the names and IDs
-    for up to 10 files.
-    """
+def main():
     gwg_args = parse_args()
+
+    level = logging.DEBUG if gwg_args.debug else logging.INFO
+    init_logger(level)
+
     secrets = SecretManager()
     
     team = None
@@ -509,11 +505,11 @@ def main():
     elif gwg_args.prod:
         team = "52"
     else:
-        log.critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
+        logging.getLogger(LOGGER_NAME).critical("Something horrible happened because you should always have a single one of the above options on. Quitting.")
         sys.exit()
 
     gdrive = DriveManager(secrets, team=team, update=False)
-    gwg_updater = GWGLeaderUpdater(secrets, gdrive)
+    gwg_updater = GWGLeaderUpdater(gdrive, secrets, gwg_args)
 
     while True:
         gdrive.update_drive_files()
@@ -527,12 +523,17 @@ def main():
             gwg_updater.update_master_list()
             gwg_updater.notify_reddit(team)
 
-        if gwg_args.test or gwg_args.single:
-            log.info("Exiting early due to --single --test on cli")
+        # quit if we are testing instead of running forever
+        if gwg_args.test:
+            logging.getLogger(LOGGER_NAME).info("Exiting a test run")
+            return
+
+        if gwg_args.single:
+            logging.getLogger(LOGGER_NAME).info("Exiting early due to --single command on cli")
             sys.exit()
 
         sleep_time = 60*60
-        log.info("No new data available for updating with. Sleeping for %s" % sleep_time)
+        logging.getLogger(LOGGER_NAME).info("No new data available for updating with. Sleeping for %s" % sleep_time)
         sleep(sleep_time)
 
 if __name__ == '__main__':
