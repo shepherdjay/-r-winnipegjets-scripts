@@ -43,6 +43,9 @@ class SheetKeys(Enum):
     READY_COLUMN = 8
     LEADERBOARD_ADDED_COLUMN = 9
     LEADER_WRITTEN_SUCCESS = "yes"
+    RESULT_USERNAME = 3
+    RESULT_POINTS = 9
+    RESULT_DATETIME = 2
 
 class DriveManager():
     gc = None
@@ -132,7 +135,15 @@ class DriveManager():
 
         return cen.strftime('%Y/%m/%d %H:%M')
 
-    def _get_sheet_two_columns(self, fileid, sheet_index, column1, column2, remove_headers=4):
+    def get_game_results_game_start(self, fileid, sheet_index):
+        # returns the game start time that is written in each game result answer sheet
+        log.debug("Retrieving official game start time")
+        results = self.get_sheet_single_column(fileid, 2, sheet=sheet_index, remove_headers=2)
+        log.debug("game start time was %s " % results[0])
+
+        return results[0]
+
+    def _get_valid_player_entries(self, fileid, sheet_index, remove_headers=4):
         """this will take a look in the leaderboard file for sheet 'game' and return
         all the pairs of usernames and points achieved for that particular round.
 
@@ -140,17 +151,31 @@ class DriveManager():
 
         returns a dict that contains the results of the GWG challenge
         """
-        log.debug("Getting sheet two columsn for %s sheet %s col1 %s col2 %s remcol %s" % (fileid, sheet_index,column1, column2, remove_headers))
-        column1_data = self.get_sheet_single_column(fileid, column1, sheet=sheet_index, remove_headers=remove_headers)
-        column2_data = self.get_sheet_single_column(fileid, column2, sheet=sheet_index, remove_headers=remove_headers)
 
-        column1_data =[item.strip().lower() for item in column1_data]
-        column2_data =[item.strip().lower() for item in column2_data]
+        log.debug("Getting valid player entries from file %s sheet %s" % (fileid, sheet_index))
+        game_start = self.get_game_results_game_start(fileid, sheet_index)
+        times = self.get_sheet_single_column(fileid, SheetKeys.RESULT_DATETIME.value, sheet=sheet_index, remove_headers=remove_headers)
+        users = self.get_sheet_single_column(fileid, SheetKeys.RESULT_USERNAME.value, sheet=sheet_index, remove_headers=remove_headers)
+        points = self.get_sheet_single_column(fileid, SheetKeys.RESULT_POINTS.value, sheet=sheet_index, remove_headers=remove_headers)
 
-        # convert to dict and remove garbage
-        result = dict(zip(column1_data, column2_data))
-        del result['']
-        return result
+        users =[item.strip().lower() for item in users]
+        points =[item.strip().lower() for item in points]
+
+        # parse late entries from this list
+        results = {}
+        game_time = None
+        game_time = dt.strptime(game_start, "%Y/%m/%d %H:%M")
+
+        for x in range(len(times)):
+            if not times[x]:
+                continue
+            entry_time = dt.strptime(times[x], '%Y/%m/%d %H:%M') 
+            if entry_time <= game_time:
+                results[users[x]] = points[x]
+            else:
+                log.debug("Late Entry %s for user %s" % (times[x], users[x]))
+
+        return results
 
     def _empty_drive_files(self):
         """returns the clean struct for drive file management."""
@@ -292,7 +317,7 @@ class DriveManager():
             log.error('attempted to open with key: %s on sheet %s' % (file_id, sheet))
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
-            sys.exit(-1)
+            return None
 
     def get_file_entries(self, file_data):
         """This function accepts a list of files that we will go through
@@ -330,25 +355,26 @@ class DriveManager():
             lines = worksheet.get_all_values()
 
             # add title bar minus that last 2 elements (since those are the trigger for file running) but add points column.
-            new_row = lines[0][:-2] + ["Points"]
+            new_row = lines[0][:-3] + ["Points", "Ramblings"]
             results['title'] = new_row
 
             # find matching game line
             for line in lines:
                 if line[0] == game_id:
                     #add line minus last column since that is the trigger for file being run.
-                    results['result'] = line[:-1]
-
+                    results['result'] = line[:-3]
                     log.debug("Done getting game results.")
-                    return results
-            log.debug("Failure finding game results.")
-            return results
+                    break
+
+            if not results['result']:
+                log.debug("Failure finding game results.")
 
         except Exception as error:
             log.error('attempted to open with key: %s' % game_id)
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
-            return results
+
+        return results
 
     def create_new_sheet(self, sheet_info):
         """Creates a new sheet with the following constraints
@@ -371,13 +397,19 @@ class DriveManager():
             new_worksheet = workbook.add_worksheet(title=sheet_info['name'], 
                                                     rows=1,
                                                     cols=1)
-            for line in sheet_info['data']:
-                new_worksheet.append_row(line)
+            for key in ["data", "late", "stats"]:
+                if key == "late":
+                    new_worksheet.append_row(["Late entries:"])
+
+                for line in sheet_info[key]:
+                    new_worksheet.append_row(line)
+                new_worksheet.append_row(None)
+
             log.debug("Done creating and appending rows to file.")
             return True
 
         except Exception as error:
-            log.error('attempted to write new sheet in binder: %s' % leader_fileid)
+            log.error('attempted to write new sheet in book: %s' %  sheet_info['id'])
             log.error('An error occurred: %s' % error)
             log.error(traceback.print_exc())
             workbook.del_worksheet(new_worksheet)
@@ -502,7 +534,9 @@ class DriveManager():
         """
 
         unwritten_games = []
-        data = self.get_all_sheet_lines(self.drive_files['leaderboard']['id'], headers=False, sheet=SheetKeys.ANSWERKEY_SHEET.value)
+        data = self.get_all_sheet_lines(self.drive_files['leaderboard']['id'],
+                                        headers=False, 
+                                        sheet=SheetKeys.ANSWERKEY_SHEET.value)
 
         if not data:
             return []
@@ -510,7 +544,7 @@ class DriveManager():
         # trim empty lines
         data = self._remove_values_from_list(data, [""] * len(data[0]))
 
-        #ranging so we can save the cell ID to overwrite on completion.
+        # ranging so we can save the cell ID to overwrite on completion.
         for i in range(len(data)):
             if (data[i][SheetKeys.READY_COLUMN.value].lower() != SheetKeys.LEADER_WRITTEN_SUCCESS.value and 
                 data[i][0] != "" and 
@@ -521,7 +555,8 @@ class DriveManager():
 
     def get_history_game_points(self, game):
         """this will take a look in the leaderboard file for sheet 'game' and return
-        all the pairs of usernames and points achieved for that particular round.
+        all the pairs of usernames and points achieved for that particular round. Note that
+        we also confirm at this point if the entry was in at the correct time.
 
         game: the GWG tab that we want to read from the general leaderboard
 
@@ -540,9 +575,8 @@ class DriveManager():
                 break
 
         if sheet_index:
-            # the below only works assuming the games are added/created in order to the leaderboard spreadsheet.
-            # note that the answer key is now in spot 1, so we need to +1 to this position.
-            return self._get_sheet_two_columns(leader_sheet_id, sheet_index, 3, 9, remove_headers=4)
+            results = self._get_valid_player_entries(leader_sheet_id, sheet_index)
+            return results
         return None
 
     def convert_rank(self, rank):
@@ -586,7 +620,7 @@ class DriveManager():
         """
         special_users = self.secrets.get_previous_winners(self.team_folder)
 
-        #TODO: currently if the sheet for leaderboards is filled, this will fail.
+        # TODO: currently if the sheet for leaderboards is filled, this will fail.
         #      write software to check if we have reached the end of the document and if so,
         #      start to append new rows instead of trying to overwrite them.
         try:
@@ -655,7 +689,7 @@ class DriveManager():
             sys.exit(-1)
 
     def get_gameday_form(self, form_num):
-        """attempts to get a form named GWG formnum. Returns None if there isn't one."""
+        """attempts to get a form named GWG form num. Returns None if there isn't one."""
         form_num = str(form_num)
         for form in self.drive_files['forms']:
             if form_num in form['title'].lower() and "(responses)" not in form['title'].lower():

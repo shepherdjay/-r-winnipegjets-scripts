@@ -16,9 +16,11 @@ secrets = None
 
 def get_list_of_entries(files):
     """This function accepts a list of files that we will go through
-    (not blacklisted) pull the people entries for the GWG and return a list of lists
-    that contains all the entries for each response sheet we have. In a perfect world
-    this parameter passed will only have 1 file in it, but this may not be the case.
+    and pull the user entries for the GWG. 
+
+    Returns a list of lists that contains all the entries for each response sheet we have. 
+    In a perfect world this parameter passed will only have 1 file in it, but this may not 
+    always be the case.
     """
 
     new_data = []
@@ -28,14 +30,15 @@ def get_list_of_entries(files):
 
     #sort files by creation date so we read oldest files first(earlier games)
     for file in sorted_files:
-        new_data.append(gdrive.get_file_entries(file))
+        data = gdrive.get_file_entries(file)
+        if data:
+            new_data.append(data)
+        else:
+            log.error("An error occurred and we are returning None early.")
+            return None
 
     log.debug("Done getting new GWG entires.")
     return new_data
-
-def format_results_data(data):
-    """returns a formatted string that we like for presentation of results per game."""
-    return data[:2] + ["username"] + data[2:] + ["N/A"]
 
 def get_players_points(player, answers):
     """Calculates the total points that a player may have gotten in the GWG challenge.
@@ -52,23 +55,43 @@ def get_players_points(player, answers):
     return total
 
 def get_gwg_answers(data):
-    """Returns a list of possible answers for the GWG questions"""
+    """Returns a list of possible answers for the GWG questions. This list can contain a 
+    list of accepted responses since there are cases when an answer can have a tie
+    """
 
     result = []
     for x in range(3):
-         #if no ',' creates a list of len=1
+         #if no ',' in list it creates a list of len=1
         new_ans = data[2+ (x*2)].lower().split(",")
 
         trimmed = []
         for answer in new_ans:
             trimmed.append(answer.strip())
         result.append(trimmed)
-
     return result
 
+def get_game_headers(data):
+    """Takes a game name, pulls and parses the new headers to include a username
+    column.
+
+    Returns the new headers
+    """
+    results = []
+
+    headers = data['title']
+    new_data = headers[:2] + ["username"] + headers[2:]
+    results.append(new_data)
+
+    headers = data['result']
+    new_data = headers[:2] + [""] + headers[2:]
+    results.append(new_data)
+
+    return results
+
 def create_game_history(game):
-    """takes the current game, makes a new worksheet in the google sheet that contains
-     the previous games results and the answer key.
+    """Takes the current game and creates a list of entries for said game.
+
+    Returns the list of data for the passed game.
     """
 
     log.debug("Creating new history lines for previous game leaderboard.")
@@ -77,7 +100,7 @@ def create_game_history(game):
 
     if game['name'] in gdrive.get_all_books_sheets(leader_fileid):
         log.error("This game has already been written to the worksheet as a sheet")
-        log.error("Assuming this is a failure recovery and continuing(?)")
+        log.error("Assuming this is failure recovery and continuing(?)")
         return True
     else:
         log.debug("adding sheet %s to book" % game['name'])
@@ -85,40 +108,49 @@ def create_game_history(game):
         new_sheet['id'] = leader_fileid
         new_sheet['name'] = game['name']
         new_sheet['rows'] = len(game['data'])
-        new_sheet['cols'] = 5 # timestamp, username, GWG, q2, q3
+        new_sheet['cols'] = 6 # timestamp, username, GWG, q2, q3, comment
         new_sheet['data'] = []
+        new_sheet['late'] = []
+        new_sheet['stats'] = []
 
+        # get headers
         game_result_data = gdrive.get_games_result(game['name'])
-
-        new_sheet['data'].append(format_results_data(game_result_data['title']))
-        new_sheet['data'].append(format_results_data(game_result_data['result']))
-
+        new_sheet['data'] += get_game_headers(game_result_data)
+        
         # magic number positioning
         gwg_answers = get_gwg_answers(game_result_data['result'])
         game_time = dt.strptime(game_result_data['result'][1], "%Y/%m/%d %H:%M")
+        game_time_readable = game_time.strftime('%Y/%m/%d %H:%M:%S')
 
         new_sheet['data'].append("")
 
         #remove heading, then iterate through the whole list.
         data_line = game['data'][1:]
         num_late_entries = 0
+        late_user_data = {'users': [], 'game_start': game_time_readable}
 
         for data in data_line:
+            entry_time = dt.strptime(data[0], "%d/%m/%Y %H:%M:%S")
+            date_readable = entry_time.strftime('%Y/%m/%d %H:%M:%S')
             player_points = get_players_points(data, gwg_answers) 
-            new_data_line = ["", "", data[1], data[2], "", data[3], "", data[4], player_points]
+            # legacy support for comment questions concerns (remove in 2018/19 season and just directly accept data[5])
+            cqc = "" if len(data) !=6 else data[5]
+            new_data_line = ["", date_readable, data[1], data[2], "", data[3], "", data[4], player_points, cqc]
 
             # check if user got their entry in on time. if not, avoid it.
-            entry_time = dt.strptime(data[0], "%m/%d/%Y %H:%M:%S")
             if (entry_time <= game_time):
                 new_sheet['data'].append(new_data_line)
             else:
                 num_late_entries += 1
-        new_sheet['data'].append(["Total entries: " + str(len(data_line))])
-        new_sheet['data'].append(["Late entries: " + str(num_late_entries)])
-        new_sheet['data'].append(["Total valid entries: " + str(len(data_line) - num_late_entries)])
+                late_user_data['users'].append({'name': data[1], 'entry_time': date_readable})
+                new_sheet['late'].append(new_data_line)
+
+        new_sheet['stats'].append(["Total entries: " + str(len(data_line))])
+        new_sheet['stats'].append(["Late entries: " + str(num_late_entries)])
+        new_sheet['stats'].append(["Total valid entries: " + str(len(data_line) - num_late_entries)])
+        new_sheet['messages'] = late_user_data
 
         log.debug("Done with creating new worksheet %s data" % game['name'])
-
         return new_sheet
 
 def add_user_rankings(data):
@@ -254,13 +286,47 @@ def update_master_list():
 
     return True
 
+def alert_late_users(game, late_users):
+    """Takes a list of games and users that entered their GWG entry late.
+    """
+
+    log.debug(f"Sending mail to late users: {late_users} for game {game}.")
+
+    subject = f"You had a late GWG Entry for {game}"
+
+    for user in late_users['users']:
+        body = f"""Hi {user['name']},  
+
+You had a late entry for a recent GWG challenge! The game's official puck drop was at {late_users['game_start']} and your entry was at {user['entry_time']}.
+Make sure to get this in on time in the future!  
+
+If you think this message was sent in error, please reply to this message with the description of issue you think there may be.
+
+Go Jets Go!"""
+        success = False
+        attempts = 0
+        while not success and attempts < 5:
+            try:
+                r.redditor(user['name']).message(subject, body)
+                success = True
+            except Exception as e:
+                log.error("Exception trying to mail redditor %s. Waiting 30 and trying again." % user['username'])
+                log.error("error: %s" % e)
+                log.error(traceback.print_stack())
+                attempts += 1
+                sleep(30)
+    log.debug("Done sending late message mails.")
+
 def update_leaderboard_spreadsheet(new_games):
     """this function will read the leaderboard spreadsheet, update the latest worksheet, add
     a new worksheet for the current game, and return success signal
     """
     for game in new_games:
         gdrive.update_game_start_time(game['name'])
-        gdrive.create_new_sheet(create_game_history(game))
+        new_game_history = create_game_history(game)
+
+        gdrive.create_new_sheet(new_game_history)
+        alert_late_users(game['name'], new_game_history['messages'])
 
 def convert_response_filename(name):
     """convert a standardized game name string into a string our software expects.
@@ -278,7 +344,7 @@ def get_pending_game_data(game_names):
     return a list of files that match the list of pending game_names we are passed
     """
 
-    log.debug("collecting files from pending game names")
+    log.debug("collecting files from pending game names %s" % game_names)
 
     pending_games = []
     files = gdrive.get_drive_filetype('responses')
@@ -311,13 +377,13 @@ def notify_reddit(team):
 
     log.debug("attempting to notify reddit of updated leaderboard")
     for submission in r.subreddit(secrets.get_reddit_name(team)).new(limit=10):
-        if "pgt" in submission.title.lower():
+        if any(sub in submission.title.lower() for sub in ["pgt", "odt", "gdt", "game day", "post game", "off day"]):
             log.debug("     Found a thread")
             if _valid_date_in_title(submission.created_utc):
                 log.debug("        Appropriate thread creation date. Posting...")
                 comment = submission.reply(_get_leaderboard_update_body())
                 comment.disable_inbox_replies()
-                log.debug("done notifying reddit of updates")
+                log.debug("         done notifying reddit of updates")
                 break
 
 def manage_gwg_leaderboard(pending_games):
