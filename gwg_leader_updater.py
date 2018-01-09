@@ -141,7 +141,7 @@ class GWGLeaderUpdater:
                 # legacy support for comment questions concerns (remove in 2018/19 season and just directly accept data[5])
                 cqc = "" if len(data) !=6 else data[5]
 
-                new_data_line = ["", "", data[1], data[2], "", data[3], "", data[4], player_points, cqc]
+                new_data_line = ["", date_readable, data[1], data[2], "", data[3], "", data[4], player_points, cqc]
 
                 # check if user got their entry in on time. if not, avoid it.
                 entry_time = dt.strptime(data[0], "%d/%m/%Y %H:%M:%S")
@@ -521,7 +521,8 @@ def main():
 
         if gdrive.new_leaderboard_data():
             gwg_updater.update_master_list()
-            gwg_updater.notify_reddit(team)
+            if not gwg_args.debug:
+                gwg_updater.notify_reddit(team)
 
         # quit if we are testing instead of running forever
         if gwg_args.test:
