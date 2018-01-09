@@ -1,5 +1,6 @@
 import argparse
 import logging
+import praw
 import sys
 import traceback
 from datetime import datetime as dt
@@ -316,8 +317,12 @@ Go Jets Go!"""
                 try:
                     r.redditor(user['name']).message(subject, body)
                     success = True
+                except praw.exception.InvalidUser:
+                    self.log.error(f"User {user['name']} doesn't exist. Not mailing...")
+                    attempts = 5
+                    continue
                 except Exception as e:
-                    self.log.error("Exception trying to mail redditor %s. Waiting 30 and trying again." % user['username'])
+                    self.log.error("Exception trying to mail redditor %s. Waiting 30 and trying again." % user['name'])
                     self.log.error("error: %s" % e)
                     self.log.error(traceback.print_stack())
                     attempts += 1
@@ -330,10 +335,10 @@ Go Jets Go!"""
         """
         for game in new_games:
             self.gdrive.update_game_start_time(game['name'])
-            new_game_history = create_game_history(game)
+            new_game_history = self.create_game_history(game)
 
-            gdrive.create_new_sheet(new_game_history)
-            alert_late_users(game['name'], new_game_history['messages'])
+            self.gdrive.create_new_sheet(new_game_history)
+            self.alert_late_users(game['name'], new_game_history['messages'])
 
     def convert_response_filename(self, name):
         """convert a standardized game name string into a string our software expects.
@@ -386,77 +391,11 @@ This is an automated message, please PM me if there are any issues.""" % leader_
         for submission in r.subreddit(self.secrets.get_reddit_name(team)).new(limit=10):
             if any(sub in submission.title.lower() for sub in ["pgt", "odt", "gdt", "game day", "post game", "off day"]):
                 self.log.debug("     Found a thread")
-                if _valid_date_in_title(submission.created_utc):
+                if self._valid_date_in_title(submission.created_utc):
                     self.log.debug("        Appropriate thread creation date. Posting...")
                     comment = submission.reply(_get_leaderboard_update_body())
                     comment.disable_inbox_replies()
                     self.log.debug("         done notifying reddit of updates")
-                    break
-
-    def update_leaderboard_spreadsheet(self, new_games):
-        """this function will read the leaderboard spreadsheet, update the latest worksheet, add
-        a new worksheet for the current game, and return success signal
-        """
-        for game in new_games:
-            self.gdrive.update_game_start_time(game['name'])
-            self.gdrive.create_new_sheet(self.create_game_history(game))
-
-    def convert_response_filename(self, name):
-        """convert a standardized game name string into a string our software expects.
-
-        Eg.   GM 3 (Responses) -> GM3
-            GM 62 (Responses) -> GM62
-            GWG 62 (Responses) -> GM62
-            GWG 3 (Responses) -> GM3
-        """
-        parts = name.split()
-        return "GM" + parts[1]
-
-    def get_pending_game_data(self, game_names):
-        """Goes through the pending game names and find their matching file for consumption.
-        return a list of files that match the list of pending game_names we are passed
-        """
-
-        self.log.debug("collecting files from pending game names")
-
-        pending_games = []
-        files = self.gdrive.get_drive_filetype('responses')
-        for file in files:
-            filename = self.convert_response_filename(file['title'])
-            for game in game_names:
-                if game == filename:
-                    pending_games.append(file)
-                    break
-
-        self.log.debug("Done collecting pending game files for games %s" % game_names)
-        return pending_games
-
-    def _get_leaderboard_update_body(self, ):
-        leader_link = self.gdrive.get_drive_filetype('leaderboard')['alternateLink']
-        return ("""GWG has been updated! Check it out [here](%s)!  
-
-This is an automated message, please PM me if there are any issues.""" % leader_link)
-
-    def _valid_date_in_title(self, post_time):
-        """checks if this thread was posted on game day for PGT"""
-
-        today = dt.now()
-        post = dt.fromtimestamp(post_time)
-
-        return today.year == post.year and today.month == post.month and today.day == post.day
-
-    def notify_reddit(self, team):
-        """Look for a PGT or a GDT or a ODT and post a comment in there saying the leaderboard is updated."""
-
-        self.log.debug("attempting to notify reddit of updated leaderboard")
-        for submission in r.subreddit(self.secrets.get_reddit_name(team)).new(limit=10):
-            if "pgt" in submission.title.lower():
-                self.log.debug("     Found a thread")
-                if self._valid_date_in_title(submission.created_utc):
-                    self.log.debug("        Appropriate thread creation date. Posting...")
-                    comment = submission.reply(self._get_leaderboard_update_body())
-                    comment.disable_inbox_replies()
-                    self.log.debug("done notifying reddit of updates")
                     break
 
     def manage_gwg_leaderboard(self, pending_games):
