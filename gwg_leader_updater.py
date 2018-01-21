@@ -361,7 +361,7 @@ Go Jets Go!"""
         pending_games = []
         files = self.gdrive.get_drive_filetype('responses')
         for file in files:
-            filename = convert_response_filename(file['title'])
+            filename = self.convert_response_filename(file['title'])
             for game in game_names:
                 if game == filename:
                     pending_games.append(file)
