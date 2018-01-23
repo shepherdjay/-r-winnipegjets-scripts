@@ -393,7 +393,7 @@ This is an automated message, please PM me if there are any issues.""" % leader_
                 self.log.debug("     Found a thread")
                 if self._valid_date_in_title(submission.created_utc):
                     self.log.debug("        Appropriate thread creation date. Posting...")
-                    comment = submission.reply(_get_leaderboard_update_body())
+                    comment = submission.reply(self._get_leaderboard_update_body())
                     comment.disable_inbox_replies()
                     self.log.debug("         done notifying reddit of updates")
                     break
