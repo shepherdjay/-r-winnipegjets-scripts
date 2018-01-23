@@ -104,6 +104,9 @@ class DriveManager():
                 data = urlopen("https://statsapi.web.nhl.com/api/v1/schedule?expand=schedule.linescore&startDate=" + today + "&endDate=" + today + "&teamId=" + str(team))
                 data = json.load(data)
                 return data['dates'][0]['games'][0]['linescore']['periods'][0]['startTime']
+            except KeyError:
+                # NHL website wasn't updated so use regular game time
+                return data['dates'][0]['games'][0]['gameDate']
             except Exception as e:
                 log.error("exception occurred in is_game_day. Trying again shortly")
                 log.error('An error occurred: %s' % e)
