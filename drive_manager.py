@@ -340,9 +340,6 @@ class DriveManager():
             log.error(traceback.print_exc())
             sys.exit(-1)
 
-        log.debug("Done getting file entry.")
-        return new_data
-
     def get_games_result(self, game_id):
         """Check the answer_key spread sheet for a certain game, and returns the tuple for the 
         successful results or None is there isn't a matching game.
