@@ -1,6 +1,6 @@
 import argparse
 import logging
-import praw
+import prawcore
 import sys
 import traceback
 from datetime import datetime as dt
@@ -317,7 +317,7 @@ Go Jets Go!"""
                 try:
                     r.redditor(user['name']).message(subject, body)
                     success = True
-                except praw.exception.InvalidUser:
+                except prawcore.exceptions.NotFound:
                     self.log.error(f"User {user['name']} doesn't exist. Not mailing...")
                     attempts = 5
                     continue
